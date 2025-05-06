@@ -1,5 +1,6 @@
 /// This module implements encoding/decoding routines for lambda terms in
 /// typical text notation with named variables.
+use crate::Identifier;
 use crate::Term;
 
 use std::rc::Rc;
@@ -14,15 +15,11 @@ pub fn decode(named: &str) -> Term {
 
 /// Convert a lambda term to its string representation with named variables.
 pub fn encode(term: &Term) -> String {
-    encode_(term, 0)
-}
-
-fn encode_(term: &Term, curdepth: usize) -> String {
     match term {
-        Term::Var { name } => name.clone(),
-        Term::Abs { name, body } => format!("(λ{}. {})", name, encode_(body, curdepth + 1)),
-        Term::App { func, arg } => {
-            format!("({} {})", encode_(func, curdepth), encode_(arg, curdepth),)
+        Term::Var { name } => name.0.clone(),
+        Term::Abs { var, t } => format!("(λ{}. {})", var.0, encode(t)),
+        Term::App { t1, t2 } => {
+            format!("({} {})", encode(t1), encode(t2),)
         }
     }
 }
@@ -160,30 +157,32 @@ impl Parser {
     fn parse_abs(&mut self) -> Term {
         self.expect(Some(Token::Lambda));
 
-        let name = match self.current_token() {
+        let var = Identifier(match self.current_token() {
             Some(Token::Var(ref var)) => var.clone(),
             _ => panic!(
                 "Unexpected token: {:?} (expected Variable)",
                 self.current_token()
             ),
-        };
+        });
         self.advance();
 
         self.expect(Some(Token::Dot));
 
-        let body = Rc::new(self.parse_term());
+        let t = Rc::new(self.parse_term());
 
-        Term::Abs { name, body }
+        Term::Abs { var, t }
     }
 
     fn parse_app(&mut self) -> Term {
-        let func = Rc::new(self.parse_term());
-        let arg = Rc::new(self.parse_term());
-        Term::App { func, arg }
+        let t1 = Rc::new(self.parse_term());
+        let t2 = Rc::new(self.parse_term());
+        Term::App { t1, t2 }
     }
 
     fn parse_var(&mut self, name: String) -> Term {
         self.advance();
-        Term::Var { name }
+        Term::Var {
+            name: Identifier(name),
+        }
     }
 }
