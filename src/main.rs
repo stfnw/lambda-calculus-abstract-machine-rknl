@@ -11,38 +11,11 @@ use format::named;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-fn main() {
-    // Example term given in 4.1 Elaborate Example Execution
-    // > This is one of the simplest examples that uses all transitions of the
-    // > machine and demonstrates its main features
-    let testcase = EvalTestCase {
-        comment: "TODO",
-        term: r"((\x. ((c x) x)) ((\y. (\z. ((\x. x) z))) ((\x. (x x)) (\x. (x x)))))",
-        reduced: "((c (λvar0. var0)) (λvar0. var0))",
-    };
-
-    println!("comment {}", testcase.comment);
-    let ast = named::decode(testcase.term);
-    println!("parsed  {}", ast);
-    let res = eval(ast);
-    println!(
-        "reduced in {} steps to term {}",
-        res.steps, res.reduced_term
-    );
-    assert_eq!(testcase.reduced, named::encode(&res.reduced_term));
-
-    assert_eq!(27, res.steps);
-
-    println!();
-}
-
-struct EvalTestCase<'a> {
-    comment: &'a str,
-    term: &'a str,
-    reduced: &'a str,
-}
+fn main() {}
 
 // TODO doc
+
+// TODO Box -> Rc?
 
 // TODO Note that Terms and Envs are reference counted.
 // The other structures are either passed linearly and don't need cloning (like Stores),
@@ -289,5 +262,46 @@ fn eval(term: Term) -> EvalResult {
 
         // Increment steps counter.
         steps += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct EvalTestCase<'a> {
+        comment: &'a str,
+        term: &'a str,
+        reduced: &'a str,
+    }
+
+    /// Test correct beta reduction for the example term given in the paper in
+    /// section 4.1 "Elaborate Example Execution":
+    /// > This is one of the simplest examples that uses all transitions of the
+    /// > machine and demonstrates its main features
+    /// It not only tests that the expression is reduced to the correct lambda
+    /// term, but also that this happens expected in the expected number of steps
+    /// listed in the execution trace in Table 2. "Elaborate example execution
+    /// in refocusing notation".
+    #[test]
+    fn test_eval_paper_example() {
+        let test = EvalTestCase {
+            comment: "Example term given in the paper in section 4.1",
+            term: r"((\x. ((c x) x)) ((\y. (\z. ((\x. x) z))) ((\x. (x x)) (\x. (x x)))))",
+            reduced: "((c (λvar0. var0)) (λvar0. var0))",
+        };
+        let test_steps = 27;
+
+        println!("comment {}", test.comment);
+        let ast = named::decode(test.term);
+        println!("parsed  {}", ast);
+        let res = eval(ast);
+        println!(
+            "reduced in {} steps to term {}",
+            res.steps, res.reduced_term
+        );
+        assert_eq!(test.reduced, named::encode(&res.reduced_term));
+
+        assert_eq!(test_steps, res.steps);
     }
 }
