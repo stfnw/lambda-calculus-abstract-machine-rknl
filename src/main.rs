@@ -15,14 +15,15 @@ fn main() {}
 
 // TODO doc
 
-// TODO Box -> Rc?
-
-// TODO Note that Terms and Envs are reference counted.
+// Note that Terms and Envs are reference counted.
 // The other structures are either passed linearly and don't need cloning (like Stores),
 // or are made up mainly of Rc<Term> and Rc<Env>, for which cloning is cheap (e.g. Values).
+// For Rc<T>, we use Rc::clone(T) explicitly, instead of calling it as `T.clone()`.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Identifier(String); // TODO newtype for proper separation of types
+// Use a newtype and not a type alias for proper separation of types / to
+// prevent confusion.
+struct Identifier(String);
 
 #[derive(Debug, Clone)]
 enum Term {
@@ -38,6 +39,8 @@ impl std::fmt::Display for Term {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// Use a newtype and not a type alias for proper separation of types / to
+// prevent confusion.
 struct Location(usize);
 
 #[derive(Debug)]
@@ -75,7 +78,6 @@ enum Stack {
     Nil,
     Cons(Frame, Box<Stack>),
 }
-// TODO vec?
 
 /// Configuration / state of the abstract machine.
 #[derive(Debug)]
@@ -88,8 +90,6 @@ enum Conf {
 // persistent data structures and simply extended without cloning everything
 // TODO especially HashMap in Stores
 // TODO especially HashMap in Envs
-
-// TODO review all clones and make sure to explicitly use Rc::clone for Rc's
 
 struct EvalResult {
     /// Fully reduced lambda calculus term.
@@ -143,11 +143,11 @@ fn eval(term: Term) -> EvalResult {
                 ),
 
                 // Rule (2).
-                Term::Abs { var, t } => {
+                Term::Abs { var: x, t } => {
                     let l = fresh_location();
                     sigma.0.insert(l.clone(), StorableValue::Todo_);
                     Conf::Up(
-                        Value::LocationAbs((l, var.clone(), Rc::clone(t), e)),
+                        Value::LocationAbs((l, x.clone(), Rc::clone(t), e)),
                         s,
                         sigma,
                     )
@@ -229,7 +229,9 @@ fn eval(term: Term) -> EvalResult {
                     // Rule (8).
                     StorableValue::Done(v) => Conf::Up(v.clone(), s, sigma),
 
-                    StorableValue::Todo(_) => todo!(),
+                    StorableValue::Todo(c) => {
+                        panic!("Encountered unexpected closure {:?} in configuration", c)
+                    }
                 }
             }
 
@@ -277,8 +279,10 @@ mod tests {
 
     /// Test correct beta reduction for the example term given in the paper in
     /// section 4.1 "Elaborate Example Execution":
+    ///
     /// > This is one of the simplest examples that uses all transitions of the
     /// > machine and demonstrates its main features
+    ///
     /// It not only tests that the expression is reduced to the correct lambda
     /// term, but also that this happens expected in the expected number of steps
     /// listed in the execution trace in Table 2. "Elaborate example execution

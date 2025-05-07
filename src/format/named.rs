@@ -11,15 +11,21 @@ use crate::Term;
 
 use std::rc::Rc;
 
-/// Parse a lambda expression AST from a string in text notation (using
-/// backslashes for lambda and requiring strict paranthesis accross each
-/// abstraction and application).
+/// Parse a lambda expression AST from a string in text notation
+/// This parser only handles lambda terms with all parenthesis explicitly and
+/// unambiguously specified. The EBNF grammar is roughly (ignoring whitespace):
+///
+/// <term>   := <var> | <abs> | <app>
+/// <var>    := [a-z][a-zA-Z0-9]*
+/// <abs>    := "(" <lambda> "." <term> ")"
+/// <app>    := "(" <term> <term> ")"
+/// <lambda> := "\" | "λ"
 pub fn decode(named: &str) -> Term {
     let tokens = Lexer::new(named).lex();
     Parser::new(tokens).parse()
 }
 
-/// Convert a lambda term to its string representation with named variables.
+/// Print a lambda term to its string representation with named variables.
 pub fn encode(term: &Term) -> String {
     match term {
         Term::Var { name } => name.0.clone(),
@@ -57,7 +63,6 @@ impl<'a> Lexer<'a> {
         self.input.chars().nth(self.pos)
     }
 
-    /// Tokenize a string in binary lambda calculus encoding.
     fn lex(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
 
@@ -128,14 +133,6 @@ impl Parser {
         self.tokens.get(self.pos).cloned()
     }
 
-    // This parser only handles lambda terms with all parenthesis explicitly and
-    // unambiguously specified.
-    //
-    // term   = var | abs | app
-    // abs    = '(' lambda '.' term ')'
-    // app    = '(' term term ')'
-    // lambda = '\' | 'λ'
-    // var    = [a-zA-Z]*
     pub fn parse(&mut self) -> Term {
         let ast_named = self.parse_term();
         self.expect(None);
