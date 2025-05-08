@@ -4,10 +4,11 @@
 // SPDX-FileCopyrightText: 2025 This specific implementation: Stefan Walter
 // SPDX-License-Identifier: MIT
 
-/// This module implements encoding/decoding routines for lambda terms in
-/// typical text notation with named variables.
-use crate::Identifier;
-use crate::Term;
+//! This module implements encoding/decoding routines for lambda terms in
+//! typical text notation with named variables.
+
+use crate::eval::Identifier;
+use crate::eval::Term;
 
 use std::rc::Rc;
 
