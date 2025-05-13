@@ -26,7 +26,7 @@ use std::rc::Rc;
 // prevent confusion.
 pub struct Identifier(pub String);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Untyped lambda calculus terms.
 pub enum Term {
     /// Variable.
@@ -92,6 +92,7 @@ enum Conf {
     Up(Value, Stack, Store),
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct EvalResult {
     /// Fully reduced lambda calculus term.
     pub reduced_term: Term,
@@ -99,11 +100,29 @@ pub struct EvalResult {
     pub steps: usize,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum EvalResult_ {
+    ReductionCompleted(EvalResult),
+    StepLimitExceeded,
+}
+
+pub fn eval(term: Term) -> EvalResult {
+    if let EvalResult_::ReductionCompleted(res) = eval_(term, None) {
+        res
+    } else {
+        panic!("Can't happen");
+    }
+}
+
 /// This is the main function of RKNL; it implementes Table 1
 /// "The RKNL abstract machine, a reasonable and lazy variant of KN".
 /// Besides the reduced term, the number of performed state transitions of the
 /// abstract machine is also counted and returned.
-pub fn eval(term: Term) -> EvalResult {
+/// It optionally takes a limit of steps that should not be exceeded; motivation
+/// behind this is to allow attempts at reducing arbitrary potentially
+/// non-halting lambda terms up to this limit, without actually getting stuck
+/// in an infinite loop.
+pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
     // Closure for creating new unique locations by incrementing a counter.
     let mut cur_location: usize = 0;
     let mut fresh_location = move || {
@@ -115,7 +134,7 @@ pub fn eval(term: Term) -> EvalResult {
     // Closure for creating new unique identifiers (variable names) by
     // incrementing a counter (this assumes without checking that the given
     // lambda term does not already contain variables of the given form).
-    // TODO verify to avoid collisions
+    // TODO verify this assumption for each input in order to avoid collisions.
     let mut cur_identifier: usize = 0;
     let mut fresh_identifier = move || {
         let res = Identifier(format!("v{}", cur_identifier));
@@ -204,6 +223,7 @@ pub fn eval(term: Term) -> EvalResult {
             ) => {
                 let l2 = fresh_location();
                 // TODO fix clone / make Env a persistent data structure
+                // (here we clone the full environment each time).
                 let mut e_: Env = Env(e.0.clone());
                 e_.0.insert(x, l2.clone());
                 sigma.0.insert(l2, StorableValue::Todo(Closure((t2, e2))));
@@ -218,6 +238,7 @@ pub fn eval(term: Term) -> EvalResult {
                         let x_ = fresh_identifier();
 
                         // TODO fix clone / make Env a persistent data structure
+                        // (here we clone the full environment each time).
                         let mut e_: Env = Env(e.0.clone());
                         e_.0.insert(x, l2.clone());
 
@@ -264,10 +285,10 @@ pub fn eval(term: Term) -> EvalResult {
 
             // Return fully reduced term.
             Conf::Up(Value::Term(t), Stack::Nil, _sigma) => {
-                return EvalResult {
+                return EvalResult_::ReductionCompleted(EvalResult {
                     reduced_term: (*t).clone(),
                     steps,
-                }
+                });
             }
         };
 
@@ -276,6 +297,13 @@ pub fn eval(term: Term) -> EvalResult {
 
         // Increment steps counter.
         steps += 1;
+
+        // Stop if step-limit is reached.
+        if let Some(max_steps_) = max_steps {
+            if steps >= max_steps_ {
+                return EvalResult_::StepLimitExceeded;
+            }
+        }
     }
 }
 
@@ -495,10 +523,11 @@ mod tests {
             println!("comment {}", case.comment);
             let ast = named::decode(case.term);
             println!("parsed  {}", ast);
-            println!("        {:?}", ast);
+
             let res = eval(ast);
             println!("reduced in {} steps to {}", res.steps, res.reduced_term);
             assert_eq!(case.reduced, named::encode(&res.reduced_term));
+
             println!();
         }
     }
