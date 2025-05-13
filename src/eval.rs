@@ -531,4 +531,18 @@ mod tests {
             println!();
         }
     }
+
+    /// Test correct handling of step limit by trying to reduce ω ω.
+    #[test]
+    fn test_step_limit_handling() {
+        let term = named::decode(r"((\x. (x x)) (\x. (x x)))");
+        let steps = 100;
+        println!(
+            "Evaluating term {} for {} steps of the abstract machine",
+            term, steps,
+        );
+
+        let res = eval_(term, Some(100));
+        assert_eq!(EvalResult_::StepLimitExceeded, res);
+    }
 }
