@@ -15,10 +15,21 @@ use crate::format::named;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-// Note that Terms and Envs are reference counted.
-// The other structures are either passed linearly and don't need cloning (like Stores),
+// A note regarding garbage collection / reference counting:
+//
+// Terms and Envs are reference counted.
+//
+// For extension, Envs are fully cloned before modification; using a persistent
+// data structure / hash table for Envs would be better to avoid this, but rusts
+// standard library doesn't seem to have one.
+//
+// The other structures are either passed linearly and don't need cloning (like Stacks or Stores),
 // or are made up mainly of Rc<Term> and Rc<Env>, for which cloning is cheap (e.g. Values).
 // For Rc<T>, we use Rc::clone(T) explicitly, instead of calling it as `T.clone()`.
+//
+// This version does not automatically garbage collect cached references inside
+// the Store map, which causes the Store to grow unnecessarily.
+// This is addressed in the next iteration.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Identifiers: used to represent variable names.
@@ -222,8 +233,8 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                 mut sigma,
             ) => {
                 let l2 = fresh_location();
-                // TODO fix clone / make Env a persistent data structure
-                // (here we clone the full environment each time).
+                // Note that we fully clone the environment before extension
+                // (see note above on reference counting).
                 let mut e_: Env = Env(e.0.clone());
                 e_.0.insert(x, l2.clone());
                 sigma.0.insert(l2, StorableValue::Todo(Closure((t2, e2))));
@@ -237,8 +248,8 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                         let l2 = fresh_location();
                         let x_ = fresh_identifier();
 
-                        // TODO fix clone / make Env a persistent data structure
-                        // (here we clone the full environment each time).
+                        // Note that we fully clone the environment before extension
+                        // (see note above on reference counting).
                         let mut e_: Env = Env(e.0.clone());
                         e_.0.insert(x, l2.clone());
 
@@ -285,8 +296,12 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
 
             // Return fully reduced term.
             Conf::Up(Value::Term(t), Stack::Nil, _sigma) => {
+                let t_strong_count = Rc::strong_count(&t);
                 return EvalResult_::ReductionCompleted(EvalResult {
-                    reduced_term: (*t).clone(),
+                    reduced_term: Rc::try_unwrap(t).expect(&format!(
+                        "Strong reference cound for term is {} != 1, can't unwrap",
+                        t_strong_count
+                    )),
                     steps,
                 });
             }
