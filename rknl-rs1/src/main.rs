@@ -8,11 +8,22 @@ mod eval;
 mod format;
 
 fn main() {
-    let term = "((λx. ((c x) x)) ((λy. (λz. ((λx. x) z))) ((λx. (x x)) (λx. (x x)))))";
+    let args: Vec<_> = std::env::args().collect();
+    if args.len() != 2 {
+        panic!(
+            "Usage: {} lambdaterm",
+            std::env::current_exe().unwrap().display()
+        )
+    }
+
+    let term = &args[1];
 
     let ast = format::named::decode(term);
-    println!("Reducing example term from paper from section 4.1: {}", ast);
+    println!("Parsed term: {}", ast);
 
     let res = eval::eval(ast);
-    println!("Reduced in {} steps to {}", res.steps, res.reduced_term);
+    println!(
+        "Reduced term in {} steps to: {}",
+        res.steps, res.reduced_term
+    );
 }
