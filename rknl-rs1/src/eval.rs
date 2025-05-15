@@ -296,6 +296,7 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
 
             // Return fully reduced term.
             Conf::Up(Value::Term(t), Stack::Nil, _sigma) => {
+                // let t_strong_count = Rc::strong_count(&t);
                 return EvalResult_::ReductionCompleted(EvalResult {
                     // TODO fix in next iteration with Rc garbage collection cache in Store.
                     // reduced_term: Rc::try_unwrap(t).expect(&format!(
@@ -560,5 +561,164 @@ mod tests {
 
         let res = eval_(term, Some(100));
         assert_eq!(EvalResult_::StepLimitExceeded, res);
+    }
+
+    // Short-hand function for constructing Term::Var.
+    fn var(v: &str) -> Term {
+        Term::Var {
+            name: Identifier(v.to_string()),
+        }
+    }
+    // Short-hand function for constructing Term::Abs.
+    fn abs(var: &str, t: Term) -> Term {
+        Term::Abs {
+            var: Identifier(var.to_string()),
+            t: Rc::new(t),
+        }
+    }
+    // Short-hand function for constructing Term::App.
+    fn app(t1: Term, t2: Term) -> Term {
+        Term::App {
+            t1: Rc::new(t1),
+            t2: Rc::new(t2),
+        }
+    }
+
+    // Definitions from the paper from section 4.2 Empirical Execution Lengths.
+
+    #[allow(non_snake_case)]
+    fn I() -> Term {
+        abs("x", var("x"))
+    }
+
+    fn omega() -> Term {
+        abs("x", app(var("x"), var("x")))
+    }
+
+    #[allow(non_snake_case)]
+    fn K() -> Term {
+        abs("x", abs("y", var("x")))
+    }
+
+    #[allow(non_snake_case)]
+    fn K_() -> Term {
+        abs("x", abs("y", var("y")))
+    }
+
+    #[rustfmt::skip]
+    fn pair() -> Term {
+        abs("x", abs("y", abs("f",
+                    app(app(var("f"), var("x")), var("y")))))
+    }
+
+    fn dub() -> Term {
+        abs("x", abs("f", app(app(var("f"), var("x")), var("x"))))
+    }
+
+    #[rustfmt::skip]
+    // Note that compared to the definition in the paper in section 4.2, I had
+    // to swap K and K_ in the definition of pred for it to work correctly.
+    // This is also consistent with the actual code accompanying the paper;
+    // compare source.tar.xz 8ecee8214d76e1acde57b67635feea5d common/term.rkt
+    // - lines 93/94 definition of yes/no (K/K_)
+    // - line 154-158 definition of Church-pred-aux and Church-pred
+    fn pred() -> Term {
+        abs("n", abs("f", abs("x",
+                    app(
+                        app(
+                            app(
+                                var("n"),
+                                abs("e", app(
+                                        app(pair(), app(var("e"), K_())),
+                                        app(var("f"), app(var("e"), K_()))))),
+                            app(app(pair(), var("x")), var("x"))),
+                        K()))))
+    }
+
+    /// Build lambda term for n-th Church numeral.
+    fn church(n: usize) -> Term {
+        if n == 0 {
+            abs("f", abs("x", var("x")))
+        } else {
+            let f = var("f");
+            let x = var("x");
+            let mut body = x;
+
+            // Apply f n times
+            for _ in 0..n {
+                body = app(f.clone(), body);
+            }
+
+            abs("f", abs("x", body))
+        }
+    }
+
+    struct EvalTestCaseFamily<'a> {
+        comment: &'a str,
+        // Function that builds the n-term of this term family given an integer n.
+        term_f: fn(usize) -> Term,
+        // Function that computes the number of steps for reducing the n-term
+        // of this term family given an integer n.
+        steps_f: fn(usize) -> usize,
+    }
+
+    /// Test correct beta reduction and number of steps for the various
+    /// term families given in the paper in Table 3.
+    #[test]
+    fn test_eval_paper_term_families() {
+        let cases = [
+            EvalTestCaseFamily {
+                comment: "c_n c_2 I",
+                term_f: |n| app(app(church(n), church(2)), I()),
+                steps_f: |n| 10 * 2_usize.pow(n as u32) + 5 * n + 5,
+            },
+            EvalTestCaseFamily {
+                comment: "pred c_n",
+                term_f: |n| app(pred(), church(n)),
+                steps_f: |n| 30 * n + 41,
+            },
+            EvalTestCaseFamily {
+                comment: r"\x. c_n ω x",
+                term_f: |n| abs("x", app(app(church(n), omega()), var("x"))),
+                steps_f: |n| 9 * n + 15,
+            },
+            EvalTestCaseFamily {
+                comment: "c_n dub I",
+                term_f: |n| app(app(church(n), dub()), I()),
+                steps_f: |n| 18 * n + 15,
+            },
+            EvalTestCaseFamily {
+                comment: r"c_n dub (\x. I x)",
+                term_f: |n| app(app(church(n), dub()), abs("x", app(I(), var("x")))),
+                steps_f: |n| 18 * n + 20,
+            },
+        ];
+
+        for case in cases.into_iter() {
+            println!("[+] Term family: {}", case.comment);
+
+            for n in 1..=9 {
+                println!();
+
+                let term = (case.term_f)(n);
+                println!("  - term {}: {}", n, term);
+
+                // clone() is only needed for allowing printing in assert.
+                let res = eval(term.clone());
+                println!("    reduced in {} steps", res.steps);
+                println!("    reduced term: {}", res.reduced_term);
+
+                assert_eq!(
+                    (case.steps_f)(n),
+                    res.steps,
+                    "Term: {}, reduced: {}, steps: {}",
+                    term,
+                    res.reduced_term,
+                    res.steps
+                );
+            }
+
+            println!();
+        }
     }
 }
