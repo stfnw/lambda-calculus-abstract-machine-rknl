@@ -296,12 +296,13 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
 
             // Return fully reduced term.
             Conf::Up(Value::Term(t), Stack::Nil, _sigma) => {
-                let t_strong_count = Rc::strong_count(&t);
                 return EvalResult_::ReductionCompleted(EvalResult {
-                    reduced_term: Rc::try_unwrap(t).expect(&format!(
-                        "Strong reference cound for term is {} != 1, can't unwrap",
-                        t_strong_count
-                    )),
+                    // TODO fix in next iteration with Rc garbage collection cache in Store.
+                    // reduced_term: Rc::try_unwrap(t).expect(&format!(
+                    //     "Strong reference cound for term is {} != 1, can't unwrap",
+                    //     t_strong_count
+                    // )),
+                    reduced_term: (*t).clone(),
                     steps,
                 });
             }
@@ -367,7 +368,7 @@ mod tests {
 
     /// Test correct beta reduction of various hard-coded lambda terms.
     #[test]
-    fn test_eval() {
+    fn test_eval_hardcoded() {
         let cases = [
             EvalTestCase {
                 comment: "I",
