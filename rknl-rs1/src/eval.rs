@@ -145,7 +145,6 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
     // Closure for creating new unique identifiers (variable names) by
     // incrementing a counter (this assumes without checking that the given
     // lambda term does not already contain variables of the given form).
-    // TODO verify this assumption for each input in order to avoid collisions.
     let mut cur_identifier: usize = 0;
     let mut fresh_identifier = move || {
         let res = Identifier(format!("v{}", cur_identifier));

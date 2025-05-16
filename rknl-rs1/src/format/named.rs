@@ -87,7 +87,21 @@ impl<'a> Lexer<'a> {
                             break;
                         }
                     }
-                    tokens.push(Token::Var(varname.into_iter().collect()));
+
+                    let varname: String = varname.into_iter().collect();
+                    // Dumb way (avoids renaming) to prevent collisions with
+                    // auto-generated identifiers / variable names later during
+                    // term reduction.
+                    if varname.starts_with("v")
+                        && varname.chars().skip(1).all(|c| c.is_ascii_digit())
+                    {
+                        panic!(
+                            "Variable names v[0-9]* are reserved for auto-generated names ({})",
+                            varname
+                        );
+                    }
+
+                    tokens.push(Token::Var(varname));
                     advance = false;
                 }
                 None => break,
