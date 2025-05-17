@@ -353,10 +353,12 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                 // println!("Return fully reduced term");
                 let t_strong_count = Rc::strong_count(&t);
                 return EvalResult_::ReductionCompleted(EvalResult {
-                    reduced_term: Rc::try_unwrap(t).expect(&format!(
-                        "Strong reference cound for term is {} != 1, can't unwrap",
-                        t_strong_count
-                    )),
+                    reduced_term: Rc::try_unwrap(t).unwrap_or_else(|_| {
+                        panic!(
+                            "Strong reference cound for term is {} != 1, can't unwrap",
+                            t_strong_count
+                        )
+                    }),
                     steps,
                 });
             }
@@ -375,18 +377,18 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
             // current abstract machine step.
             //
             // Note that copying is indeed necessary; simply iterating over
-            // `garbage_locations` directly can result in a
-            // double-mutable-borrow of the RefCell when the Location that is
-            // dropped and therefore removed from the Store itself maps to a
-            // StorableValue that contains the last LocationRef to one location
-            // index. This leads to the reference count of the latter going to
-            // 0, which in turn tries to borrow the Store inside drop mutably
-            // (while we are iterating over the store).
+            // `garbage_locations` directly while removing map entries can
+            // result in a double-mutable-borrow of the RefCell when the
+            // Location that is dropped and therefore removed from the Store
+            // itself maps to a StorableValue that contains the last LocationRef
+            // to another Location index. This leads to the reference count of
+            // the latter going to 0, which in turn tries to borrow the Store
+            // inside drop mutably (while we are iterating over the store).
             //
             // In the current implementation, these Locations that are dropped
-            // during removing Locations from the Store are not in turn
-            // recursively dropped in this iteration, but rather at the cleanup
-            // stage of the next abstract machine step.
+            // during removing Locations from the Store, are not in turn
+            // recursively dropped in *this* iteration, but rather at the
+            // cleanup stage of the *next* abstract machine step.
             let tmp: Vec<_> = garbage_locations.borrow_mut().drain(..).collect();
 
             // Get mutable reference to Store.
