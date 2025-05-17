@@ -31,14 +31,14 @@ use std::rc::Rc;
 // the Store map, which causes the Store to grow unnecessarily.
 // This is addressed in the next iteration.
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Identifiers: used to represent variable names.
 // Use a newtype and not a type alias for proper separation of types / to
 // prevent confusion.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier(pub String);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 /// Untyped lambda calculus terms.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Term {
     /// Variable.
     Var { name: Identifier },
@@ -54,13 +54,12 @@ impl std::fmt::Display for Term {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 // Use a newtype and not a type alias for proper separation of types / to
 // prevent confusion.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Location(usize);
 
 #[derive(Debug)]
-/// Environments.
 struct Env(HashMap<Identifier, Location>);
 
 #[derive(Debug)]
@@ -584,6 +583,7 @@ mod tests {
     }
 
     // Definitions from the paper from section 4.2 Empirical Execution Lengths.
+    // (and some more).
 
     #[allow(non_snake_case)]
     fn I() -> Term {

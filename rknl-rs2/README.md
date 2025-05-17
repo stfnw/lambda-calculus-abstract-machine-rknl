@@ -6,6 +6,7 @@ SPDX-FileCopyrightText: 2025 This specific implementation: Stefan Walter
 SPDX-License-Identifier: MIT
 -->
 
-TODO
 This iteration/version of RKNL is a direct implementation of the paper in Rust.
-It uses fully explicit types (newtypes instead of type aliases), which makes the code very verbose, but helped me in better understanding how the machine works.
+Compared to the previous iteration it supports an optimization: reference counting of Locations.
+I.e. the Store mapping from Locations to StorableValues is garbage collected:
+entries are removed once Locations are not referenced anymore in the other data structures.

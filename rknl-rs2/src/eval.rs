@@ -673,6 +673,7 @@ mod tests {
     }
 
     // Definitions from the paper from section 4.2 Empirical Execution Lengths.
+    // (and some more).
 
     #[allow(non_snake_case)]
     fn I() -> Term {
