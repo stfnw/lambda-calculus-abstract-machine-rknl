@@ -80,7 +80,6 @@ struct LocationRef {
 
 impl Drop for LocationRef {
     fn drop(&mut self) {
-        println!("TODO dropped {:?}", self);
         (*(self.garbage_list)).borrow_mut().push(Location(self.i));
     }
 }
@@ -217,9 +216,8 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
             // The pattern match is split up since we can't match inside the
             // `Rc<Term>` of the closure-`term` in one go.
             Conf::Down(Closure((term, e)), s, mut sigma) => match term.as_ref() {
-                // Rule (1).
                 Term::App { t1, t2 } => {
-                    println!("TODO Rule (1)");
+                    // println!("Rule (1)");
                     Conf::Down(
                         Closure((Rc::clone(t1), Rc::clone(&e))),
                         Stack::Cons(
@@ -230,9 +228,8 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                     )
                 }
 
-                // Rule (2).
                 Term::Abs { var: x, t } => {
-                    println!("TODO Rule (2)");
+                    // println!("Rule (2)");
                     let l = fresh_location();
                     sigma.0.insert((&*l).into(), StorableValue::Todo_);
                     Conf::Up(
@@ -244,9 +241,8 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
 
                 Term::Var { name: x } => match e.0.get(x) {
                     Some(l) => match sigma.0.get(&((&**l).into())).unwrap() {
-                        // Rule (3).
                         StorableValue::Todo(Closure((t, e2))) => {
-                            println!("TODO Rule (3)");
+                            // println!("Rule (3)");
                             Conf::Down(
                                 Closure((Rc::clone(t), Rc::clone(e2))),
                                 Stack::Cons(Frame::F4(Rc::clone(l)), Box::new(s)),
@@ -254,20 +250,18 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                             )
                         }
 
-                        // Rule (4).
                         StorableValue::Done(v) => {
-                            println!("TODO Rule (4)");
+                            // println!("Rule (4)");
                             Conf::Up(v.clone(), s, sigma)
                         }
 
                         StorableValue::Todo_ => panic!("Can't happen"),
                     },
 
-                    // Rule (4).
                     None => {
                         // No entry in environment for current variable
                         // => variable is unbound => return as-is withoug modification.
-                        println!("TODO Rule (4)");
+                        // println!("Rule (4)");
                         Conf::Up(
                             Value::Term(Rc::new(Term::Var { name: x.clone() })),
                             s,
@@ -277,20 +271,18 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                 },
             },
 
-            // Rule (5).
             Conf::Up(v, Stack::Cons(Frame::F4(l), s), mut sigma) => {
-                println!("TODO Rule (5)");
+                // println!("Rule (5)");
                 sigma.0.insert((&*l).into(), StorableValue::Done(v.clone()));
                 Conf::Up(v, *s, sigma)
             }
 
-            // Rule (6).
             Conf::Up(
                 Value::LocationAbs((_l, x, t, e)),
                 Stack::Cons(Frame::F1(Closure((t2, e2))), s),
                 mut sigma,
             ) => {
-                println!("TODO Rule (6)");
+                // println!("Rule (6)");
                 let l2 = fresh_location();
                 // Note that we fully clone the environment before extension
                 // (see note above on reference counting).
@@ -304,9 +296,8 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
 
             Conf::Up(Value::LocationAbs((l, x, t, e)), s, mut sigma) => {
                 match sigma.0.get(&((&*l).into())).unwrap() {
-                    // Rule (7).
                     StorableValue::Todo_ => {
-                        println!("TODO Rule (7)");
+                        // println!("Rule (7)");
                         let l2 = fresh_location();
                         let x_ = fresh_identifier();
 
@@ -332,9 +323,8 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                         )
                     }
 
-                    // Rule (8).
                     StorableValue::Done(v) => {
-                        println!("TODO Rule (8)");
+                        // println!("Rule (8)");
                         Conf::Up(v.clone(), s, sigma)
                     }
 
@@ -344,41 +334,29 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
                 }
             }
 
-            // Rule (9).
             Conf::Up(Value::Term(t), Stack::Cons(Frame::F1(Closure((t2, e2))), s), sigma) => {
-                println!("TODO Rule (9)");
+                // println!("Rule (9)");
                 Conf::Down(Closure((t2, e2)), Stack::Cons(Frame::F2(t), s), sigma)
             }
 
-            // Rule (10).
             Conf::Up(Value::Term(t2), Stack::Cons(Frame::F2(t1), s), sigma) => {
-                println!("TODO Rule (10)");
+                // println!("Rule (10)");
                 Conf::Up(Value::Term(Rc::new(Term::App { t1, t2 })), *s, sigma)
             }
 
-            // Rule (11).
             Conf::Up(Value::Term(t), Stack::Cons(Frame::F3(x), s), sigma) => {
-                println!("TODO Rule (11)");
+                // println!("Rule (11)");
                 Conf::Up(Value::Term(Rc::new(Term::Abs { var: x, t })), *s, sigma)
             }
 
-            // Return fully reduced term.
             Conf::Up(Value::Term(t), Stack::Nil, _sigma) => {
-                println!();
-                println!("TODO Readback term");
-                for (k, v) in _sigma.0.iter() {
-                    println!("TODO {:?} {:?}", k, v);
-                }
-                println!();
-
-                // TODO let t_strong_count = Rc::strong_count(&t);
+                // println!("Return fully reduced term");
+                let t_strong_count = Rc::strong_count(&t);
                 return EvalResult_::ReductionCompleted(EvalResult {
-                    // TODO fix in next iteration with Rc garbage collection cache in Store.
-                    // reduced_term: Rc::try_unwrap(t).expect(&format!(
-                    //     "Strong reference cound for term is {} != 1, can't unwrap",
-                    //     t_strong_count
-                    // )),
-                    reduced_term: (*t).clone(),
+                    reduced_term: Rc::try_unwrap(t).expect(&format!(
+                        "Strong reference cound for term is {} != 1, can't unwrap",
+                        t_strong_count
+                    )),
                     steps,
                 });
             }
