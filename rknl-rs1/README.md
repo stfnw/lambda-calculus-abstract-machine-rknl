@@ -287,3 +287,58 @@ test eval::tests::test_eval_paper_term_families ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.04s
 ```
+
+
+## Reduction of random arithmetic expressions
+
+Creates a random arithmetic expression, reduces it
+
+- once by walking/interpreting the AST,
+- and once more by translating it into a lambda calculus term (Church encoding), evaluating the term in RKNL, translating the resulting term back,
+
+and then asserts that both results are equal.
+
+Example output:
+
+```
+$ cargo test test_eval_random_arithmetic_expression -- --nocapture
+...
+running 1 test
+Random arithmetic expression: (((4 + 5) + (2 + 4)) + ((4 + 2) + (5 + 2)))
+  - result by interpretation of AST:   28
+  - result by evaluating lambda terms: 28 (331 steps)
+
+Random arithmetic expression: (((5 + 2) + (5 + 2)) * ((2 + 2) + (3 + 3)))
+  - result by interpretation of AST:   140
+  - result by evaluating lambda terms: 140 (1624 steps)
+
+Random arithmetic expression: (((3 + 5) + (2 * 4)) + ((2 + 5) + (3 + 3)))
+  - result by interpretation of AST:   29
+  - result by evaluating lambda terms: 29 (340 steps)
+
+Random arithmetic expression: (((5 + 3) * (4 + 2)) * ((3 * 4) + (5 + 2)))
+  - result by interpretation of AST:   912
+  - result by evaluating lambda terms: 912 (7577 steps)
+
+Random arithmetic expression: (((3 * 4) * (5 * 5)) + ((4 + 5) + (2 + 2)))
+  - result by interpretation of AST:   313
+  - result by evaluating lambda terms: 313 (1996 steps)
+
+Random arithmetic expression: (((5 * 2) + (3 + 3)) + ((4 + 3) + (3 + 3)))
+  - result by interpretation of AST:   29
+  - result by evaluating lambda terms: 29 (355 steps)
+
+Random arithmetic expression: (((4 + 3) + (4 * 4)) + ((5 + 4) + (2 + 5)))
+  - result by interpretation of AST:   39
+  - result by evaluating lambda terms: 39 (390 steps)
+
+Random arithmetic expression: (((5 + 4) + (4 + 4)) * ((3 * 5) * (2 + 4)))
+  - result by interpretation of AST:   1530
+  - result by evaluating lambda terms: 1530 (13499 steps)
+
+...
+
+test eval::tests::test_eval_random_arithmetic_expression ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.28s
+```

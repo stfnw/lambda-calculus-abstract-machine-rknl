@@ -635,7 +635,7 @@ mod tests {
     }
 
     /// Build lambda term for n-th Church numeral.
-    fn church(n: usize) -> Term {
+    fn church_encode(n: usize) -> Term {
         if n == 0 {
             abs("f", abs("x", var("x")))
         } else {
@@ -650,6 +650,67 @@ mod tests {
 
             abs("f", abs("x", body))
         }
+    }
+
+    /// Decode Church numeral lambda term to number
+    fn church_decode(t: Term) -> Option<usize> {
+        match t {
+            Term::Abs { var: f, t: t1 } => match &*t1 {
+                Term::Abs { var: x, t: t2 } => {
+                    let mut count = 0;
+                    let mut cur = Rc::clone(t2);
+
+                    loop {
+                        match &*cur {
+                            Term::Var { name } => {
+                                if name == x {
+                                    break;
+                                } else {
+                                    return None;
+                                }
+                            }
+                            Term::App { t1, t2 } => match &**t1 {
+                                Term::Var { name } => {
+                                    if *name == f {
+                                        count += 1;
+                                        cur = Rc::clone(t2);
+                                    } else {
+                                        return None;
+                                    }
+                                }
+                                _ => return None,
+                            },
+
+                            _ => return None,
+                        }
+                    }
+
+                    Some(count)
+                }
+
+                _ => None,
+            },
+
+            _ => None,
+        }
+    }
+
+    /// Add two Church numerals.
+    #[rustfmt::skip]
+    fn church_add() -> Term {
+        abs("m", abs("n", abs("f", abs("x",
+            app(
+                app(var("m"), var("f")),
+                app(app(var("n"), var("f")), var("x")))))))
+    }
+
+    /// Multiply two Church numerals.
+    #[rustfmt::skip]
+    fn church_mul() -> Term {
+        abs("m", abs("n", abs("f", abs("x",
+            app(
+                app(var("m"), app(var("n"), var("f"))),
+                var("x"))))))
     }
 
     struct EvalTestCaseFamily<'a> {
@@ -668,27 +729,27 @@ mod tests {
         let cases = [
             EvalTestCaseFamily {
                 comment: "c_n c_2 I",
-                term_f: |n| app(app(church(n), church(2)), I()),
+                term_f: |n| app(app(church_encode(n), church_encode(2)), I()),
                 steps_f: |n| 10 * 2_usize.pow(n as u32) + 5 * n + 5,
             },
             EvalTestCaseFamily {
                 comment: "pred c_n",
-                term_f: |n| app(pred(), church(n)),
+                term_f: |n| app(pred(), church_encode(n)),
                 steps_f: |n| 30 * n + 41,
             },
             EvalTestCaseFamily {
                 comment: r"\x. c_n ω x",
-                term_f: |n| abs("x", app(app(church(n), omega()), var("x"))),
+                term_f: |n| abs("x", app(app(church_encode(n), omega()), var("x"))),
                 steps_f: |n| 9 * n + 15,
             },
             EvalTestCaseFamily {
                 comment: "c_n dub I",
-                term_f: |n| app(app(church(n), dub()), I()),
+                term_f: |n| app(app(church_encode(n), dub()), I()),
                 steps_f: |n| 18 * n + 15,
             },
             EvalTestCaseFamily {
                 comment: r"c_n dub (\x. I x)",
-                term_f: |n| app(app(church(n), dub()), abs("x", app(I(), var("x")))),
+                term_f: |n| app(app(church_encode(n), dub()), abs("x", app(I(), var("x")))),
                 steps_f: |n| 18 * n + 20,
             },
         ];
@@ -718,6 +779,143 @@ mod tests {
             }
 
             println!();
+        }
+    }
+
+    /// Test correct beta reduction of randomly generated arithmetic expressions.
+    #[test]
+    fn test_eval_random_arithmetic_expression() {
+        let mut rng = Rng::seeded(42);
+        for _ in 0..100 {
+            let expr = Expr::random(&mut rng, 7);
+            println!("Random arithmetic expression: {}", expr);
+
+            let res1 = expr.eval_interpret();
+            println!("  - result by interpretation of AST:   {}", res1);
+
+            let res2 = expr.eval_lambda();
+            println!(
+                "  - result by evaluating lambda terms: {} ({} steps)",
+                res2.0, res2.1
+            );
+
+            assert_eq!(res1, res2.0);
+
+            println!();
+        }
+    }
+
+    pub struct Rng {
+        pub state: u64,
+    }
+
+    #[allow(dead_code)]
+    impl Rng {
+        /// Create a new PRNG with a seed based on current time.
+        pub fn new() -> Self {
+            Self::seeded(unsafe { core::arch::x86_64::_rdtsc() })
+        }
+
+        /// Create a new PRNG from a seed value.
+        pub fn seeded(seed: u64) -> Self {
+            Self { state: seed }
+        }
+
+        /// Create new random number and advance the internal state.
+        // xorshift64 implementation from G. Marsaglia, “Xorshift RNGs,” J. Stat. Soft., vol. 8, no. 14, pp. 1–6, Jul. 2003, doi: 10.18637/jss.v008.i14.
+        // SPDX-License-Identifier: MIT
+        pub fn next(&mut self) -> u64 {
+            self.state ^= self.state << 13;
+            self.state ^= self.state >> 7;
+            self.state ^= self.state << 17;
+            self.state
+        }
+
+        /// Create random u64.
+        pub fn u64(&mut self) -> u64 {
+            self.next()
+        }
+
+        /// Create random number in given range [min,max).
+        /// Uses naive way that leads to slightly non-uniform distribution.
+        pub fn range(&mut self, min: u64, max: u64) -> u64 {
+            assert!(min < max, "{} >= {}", min, max);
+            let range = max - min;
+            min + (self.next() % range)
+        }
+
+        /// Create random number in range [0,max).
+        pub fn int(&mut self, max: u64) -> u64 {
+            self.range(0, max)
+        }
+    }
+
+    /// Arithmetic expression.
+    enum Expr {
+        Val(u32),
+        Add(Box<Expr>, Box<Expr>),
+        Mul(Box<Expr>, Box<Expr>),
+    }
+
+    impl std::fmt::Display for Expr {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Expr::Val(i) => write!(f, "{}", i),
+                Expr::Add(op1, op2) => write!(f, "({} + {})", op1, op2),
+                Expr::Mul(op1, op2) => write!(f, "({} * {})", op1, op2),
+            }
+        }
+    }
+
+    impl Expr {
+        /// Create a random arithmetic expression of a rough size.
+        fn random(rng: &mut Rng, size: usize) -> Expr {
+            if size == 0 {
+                Expr::Val(rng.range(2, 6) as u32)
+            } else {
+                let op1 = Box::new(Expr::random(rng, size / 2));
+                let op2 = Box::new(Expr::random(rng, size / 2));
+                match rng.int(4) {
+                    0 => Expr::Mul(op1, op2),
+                    // Prefer addition with higher probability; this leads to
+                    // smaller numbers; this is important because Church
+                    // numerals are a unary encoding.
+                    _ => Expr::Add(op1, op2),
+                }
+            }
+        }
+
+        fn church_encode(&self) -> Term {
+            match self {
+                Expr::Val(i) => church_encode(*i as usize),
+                Expr::Add(op1, op2) => {
+                    let op1 = op1.church_encode();
+                    let op2 = op2.church_encode();
+                    app(app(church_add(), op1), op2)
+                }
+                Expr::Mul(op1, op2) => {
+                    let op1 = op1.church_encode();
+                    let op2 = op2.church_encode();
+                    app(app(church_mul(), op1), op2)
+                }
+            }
+        }
+
+        /// Evaluate arithmetic expression by converting it to a lambda term and
+        /// running RKNL to reduce the term.
+        fn eval_lambda(&self) -> (i32, usize) {
+            let term = self.church_encode();
+            let res = eval(term);
+            (church_decode(res.reduced_term).unwrap() as i32, res.steps)
+        }
+
+        /// Evaluate arithmetic expression by walking and interpreting the AST.
+        fn eval_interpret(&self) -> i32 {
+            match self {
+                Expr::Val(i) => *i as i32,
+                Expr::Add(op1, op2) => op1.eval_interpret() + op2.eval_interpret(),
+                Expr::Mul(op1, op2) => op1.eval_interpret() * op2.eval_interpret(),
+            }
         }
     }
 }
