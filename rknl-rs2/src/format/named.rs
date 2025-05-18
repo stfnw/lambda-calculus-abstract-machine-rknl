@@ -27,14 +27,40 @@ pub fn decode(named: &str) -> Term {
 }
 
 /// Print a lambda term to its string representation with named variables.
+/// (Pre-order tree-traversal, explicitly iterative to prevent stack overflow
+/// for large terms).
 pub fn encode(term: &Term) -> String {
-    match term {
-        Term::Var { name } => name.0.clone(),
-        Term::Abs { var, t } => format!("(λ{}. {})", var.0, encode(t)),
-        Term::App { t1, t2 } => {
-            format!("({} {})", encode(t1), encode(t2),)
+    enum Instr<'a> {
+        Term(&'a Term),
+        Print(String),
+    }
+    let mut stack: Vec<Instr> = Vec::new();
+    let mut result: Vec<String> = Vec::new();
+
+    stack.push(Instr::Term(term));
+
+    while let Some(instr) = stack.pop() {
+        match instr {
+            Instr::Print(s) => result.push(s),
+            Instr::Term(Term::Var { name }) => {
+                result.push(name.0.clone());
+            }
+            Instr::Term(Term::Abs { var, t }) => {
+                result.push(format!("(λ{}. ", var.0));
+                stack.push(Instr::Print(")".to_string()));
+                stack.push(Instr::Term(&*t));
+            }
+            Instr::Term(Term::App { t1, t2 }) => {
+                stack.push(Instr::Print(")".to_string()));
+                stack.push(Instr::Term(&*t2));
+                stack.push(Instr::Print(" ".to_string()));
+                stack.push(Instr::Term(&*t1));
+                stack.push(Instr::Print("(".to_string()));
+            }
         }
     }
+
+    result.join("")
 }
 
 #[derive(Clone, Debug, PartialEq)]
