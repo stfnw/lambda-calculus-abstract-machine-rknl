@@ -6,8 +6,6 @@ SPDX-FileCopyrightText: 2025 This specific implementation: Stefan Walter
 SPDX-License-Identifier: MIT
 -->
 
-TODO work in progress
-
 # Experimenting with the RKNL abstract machine
 
 This repository contains some example code I wrote while working through the following paper (unaffiliated) and experimenting with the topic:
