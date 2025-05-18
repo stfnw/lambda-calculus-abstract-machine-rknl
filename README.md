@@ -24,8 +24,8 @@ Another very good read for categorization of different reduction strategies and 
 Tomasz Drab, "Reduction Strategies in the Lambda Calculus and Their Implementation through Derivable Abstract Machines", University of Wrocław Faculty of Mathematics and Computer Science, Sep. 2022, Online. Available: https://bip.uni.wroc.pl/download/attachment/37818/rozprawa-doktorska.pdf .
 Its introduction is also published as: Introduction from T. Drab, "Reduction Strategies in the Lambda Calculus and Their Implementation through Derivable Abstract Machines: Introduction", May 21, 2024, arXiv: arXiv:2405.12586. doi: 10.48550/arXiv.2405.12586.
 
-Therein, e.g. Table 2 "Selected abstract machines" gives an overview over some existing abstract machins; relevant here for strong / full-reducing abstract machines are for example:
+Therein, e.g. Table 2 "Selected abstract machines" gives an overview over some existing abstract machines; relevant here for strong / full-reducing abstract machines are for example:
 - KN, which can have exponential overhead for certain lambda terms, and
-- RKNL, which has polynomial (bilinear) overhead (due to sharing / call-by-need)
+- RKNL, which has polynomial (bilinear in the number of $\beta$-reductions and the initial term size) overhead (due to sharing / call-by-need)
 
 The state transition rules for the RKNL abstract machine itself are listed in Table 1 "The RKNL abstract machine, a reasonable and lazy variant of KN".

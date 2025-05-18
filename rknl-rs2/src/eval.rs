@@ -352,6 +352,9 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
             Conf::Up(Value::Term(t), Stack::Nil, _sigma) => {
                 // println!("Return fully reduced term");
                 let t_strong_count = Rc::strong_count(&t);
+                // Note that since `eval` takes a `Term` (owned) and constructs
+                // an Rc of it internally, the unwrap should always succeed
+                // (there can't be any outside references to (sub-)terms).
                 return EvalResult_::ReductionCompleted(EvalResult {
                     reduced_term: Rc::try_unwrap(t).unwrap_or_else(|_| {
                         panic!(
