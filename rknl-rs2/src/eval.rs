@@ -71,30 +71,26 @@ impl Drop for Term {
             })
         }
 
-        match self {
-            Term::Var { name: _ } => {}
-            Term::Abs { var: _, t } => {
-                stack.push(std::mem::replace(t, get_new_dummy_term()));
-            }
-            Term::App { t1, t2 } => {
-                stack.push(std::mem::replace(t1, get_new_dummy_term()));
-                stack.push(std::mem::replace(t2, get_new_dummy_term()));
+        fn drop_term(stack: &mut Vec<Rc<Term>>, term: &mut Term) {
+            match term {
+                Term::Var { name: _ } => {}
+                Term::Abs { var: _, t } => {
+                    stack.push(std::mem::replace(t, get_new_dummy_term()));
+                }
+                Term::App { t1, t2 } => {
+                    stack.push(std::mem::replace(t1, get_new_dummy_term()));
+                    stack.push(std::mem::replace(t2, get_new_dummy_term()));
+                }
             }
         }
+
+        // TODO
+        drop_term(&mut stack, self);
 
         while let Some(term_rc) = stack.pop() {
             // TODO doc if unwrap fails
             if let Ok(mut term) = Rc::try_unwrap(term_rc) {
-                match &mut term {
-                    Term::Var { name: _ } => {}
-                    Term::Abs { var: _, t } => {
-                        stack.push(std::mem::replace(t, get_new_dummy_term()));
-                    }
-                    Term::App { t1, t2 } => {
-                        stack.push(std::mem::replace(t1, get_new_dummy_term()));
-                        stack.push(std::mem::replace(t2, get_new_dummy_term()));
-                    }
-                }
+                drop_term(&mut stack, &mut term);
                 // TODO doc drop
             }
         }
