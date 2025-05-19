@@ -880,7 +880,7 @@ mod tests {
     fn test_eval_random_arithmetic_expression() {
         let mut rng = Rng::seeded(42);
         for _ in 0..100 {
-            let expr = Expr::random(&mut rng, 7);
+            let expr = Expr::random(&mut rng, 9);
             println!("Random arithmetic expression: {}", expr);
 
             let res1 = expr.eval_interpret();
