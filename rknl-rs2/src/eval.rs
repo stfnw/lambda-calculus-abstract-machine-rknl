@@ -54,6 +54,74 @@ impl std::fmt::Display for Term {
     }
 }
 
+/// Manually implementing Drop for Term is needed because otherwise we run into
+/// a stack overflow when dropping large trees, because the drop propagates
+/// non-tail-recursively through the tree. The issue/solution is described here:
+/// https://rust-unofficial.github.io/too-many-lists/first-drop.html
+/// https://rust-unofficial.github.io/too-many-lists/third-final.html
+impl Drop for Term {
+    fn drop(&mut self) {
+        let mut stack = Vec::new();
+
+        match self {
+            Term::Var { name: _ } => {}
+            Term::Abs { var: _, t } => {
+                stack.push(std::mem::replace(
+                    t,
+                    Rc::new(Term::Var {
+                        name: Identifier("".to_string()),
+                    }),
+                ));
+            }
+            Term::App { t1, t2 } => {
+                stack.push(std::mem::replace(
+                    t1,
+                    Rc::new(Term::Var {
+                        name: Identifier("".to_string()),
+                    }),
+                ));
+                stack.push(std::mem::replace(
+                    t2,
+                    Rc::new(Term::Var {
+                        name: Identifier("".to_string()),
+                    }),
+                ));
+            }
+        }
+
+        // TODO helper function
+        while let Some(term_rc) = stack.pop() {
+            if let Ok(mut term) = Rc::try_unwrap(term_rc) {
+                match &mut term {
+                    Term::Var { name: _ } => {}
+                    Term::Abs { var: _, t } => {
+                        stack.push(std::mem::replace(
+                            t,
+                            Rc::new(Term::Var {
+                                name: Identifier("".to_string()),
+                            }),
+                        ));
+                    }
+                    Term::App { t1, t2 } => {
+                        stack.push(std::mem::replace(
+                            t1,
+                            Rc::new(Term::Var {
+                                name: Identifier("".to_string()),
+                            }),
+                        ));
+                        stack.push(std::mem::replace(
+                            t2,
+                            Rc::new(Term::Var {
+                                name: Identifier("".to_string()),
+                            }),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Use a newtype and not a type alias for proper separation of types / to
 // prevent confusion. More specifically: use two different types of newtypes:
 
