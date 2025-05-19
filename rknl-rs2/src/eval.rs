@@ -748,7 +748,10 @@ mod tests {
     /// Decode Church numeral lambda term to number
     fn church_decode(t: Term) -> Option<usize> {
         match t {
-            Term::Abs { var: f, t: t1 } => match &*t1 {
+            Term::Abs {
+                var: ref f,
+                t: ref body,
+            } => match &**body {
                 Term::Abs { var: x, t: t2 } => {
                     let mut count = 0;
                     let mut cur = Rc::clone(t2);
@@ -764,7 +767,7 @@ mod tests {
                             }
                             Term::App { t1, t2 } => match &**t1 {
                                 Term::Var { name } => {
-                                    if *name == f {
+                                    if *name == *f {
                                         count += 1;
                                         cur = Rc::clone(t2);
                                     } else {
