@@ -59,64 +59,43 @@ impl std::fmt::Display for Term {
 /// non-tail-recursively through the tree. The issue/solution is described here:
 /// https://rust-unofficial.github.io/too-many-lists/first-drop.html
 /// https://rust-unofficial.github.io/too-many-lists/third-final.html
+/// TODO doc gist
 impl Drop for Term {
     fn drop(&mut self) {
-        let mut stack = Vec::new();
+        let mut stack: Vec<Rc<Term>> = Vec::new();
+
+        // TODO doc
+        fn get_new_dummy_term() -> Rc<Term> {
+            Rc::new(Term::Var {
+                name: Identifier("".to_string()),
+            })
+        }
 
         match self {
             Term::Var { name: _ } => {}
             Term::Abs { var: _, t } => {
-                stack.push(std::mem::replace(
-                    t,
-                    Rc::new(Term::Var {
-                        name: Identifier("".to_string()),
-                    }),
-                ));
+                stack.push(std::mem::replace(t, get_new_dummy_term()));
             }
             Term::App { t1, t2 } => {
-                stack.push(std::mem::replace(
-                    t1,
-                    Rc::new(Term::Var {
-                        name: Identifier("".to_string()),
-                    }),
-                ));
-                stack.push(std::mem::replace(
-                    t2,
-                    Rc::new(Term::Var {
-                        name: Identifier("".to_string()),
-                    }),
-                ));
+                stack.push(std::mem::replace(t1, get_new_dummy_term()));
+                stack.push(std::mem::replace(t2, get_new_dummy_term()));
             }
         }
 
-        // TODO helper function
         while let Some(term_rc) = stack.pop() {
+            // TODO doc if unwrap fails
             if let Ok(mut term) = Rc::try_unwrap(term_rc) {
                 match &mut term {
                     Term::Var { name: _ } => {}
                     Term::Abs { var: _, t } => {
-                        stack.push(std::mem::replace(
-                            t,
-                            Rc::new(Term::Var {
-                                name: Identifier("".to_string()),
-                            }),
-                        ));
+                        stack.push(std::mem::replace(t, get_new_dummy_term()));
                     }
                     Term::App { t1, t2 } => {
-                        stack.push(std::mem::replace(
-                            t1,
-                            Rc::new(Term::Var {
-                                name: Identifier("".to_string()),
-                            }),
-                        ));
-                        stack.push(std::mem::replace(
-                            t2,
-                            Rc::new(Term::Var {
-                                name: Identifier("".to_string()),
-                            }),
-                        ));
+                        stack.push(std::mem::replace(t1, get_new_dummy_term()));
+                        stack.push(std::mem::replace(t2, get_new_dummy_term()));
                     }
                 }
+                // TODO doc drop
             }
         }
     }
