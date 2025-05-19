@@ -59,42 +59,57 @@ impl std::fmt::Display for Term {
 /// non-tail-recursively through the tree. The issue/solution is described here:
 /// https://rust-unofficial.github.io/too-many-lists/first-drop.html
 /// https://rust-unofficial.github.io/too-many-lists/third-final.html
-/// TODO doc gist
+/// The gist of it (as far as I understand) is: To prevent a recursive
+/// tree-traversal of the term during drop when it goes out of scope, we
+/// transform the tree-traversal to a manual iterative one. On visiting each
+/// node of the term tree, the node itself is replaced with a dummy node that
+/// does not have any children (a variable) and is therefore trivial to drop
+/// without recursing on the tree structure further.
 impl Drop for Term {
     fn drop(&mut self) {
+        // List of terms to be dropped.
         let mut stack: Vec<Rc<Term>> = Vec::new();
 
-        // TODO doc
-        fn get_new_dummy_term() -> Rc<Term> {
-            Rc::new(Term::Var {
-                name: Identifier("".to_string()),
-            })
-        }
-
-        fn drop_term(stack: &mut Vec<Rc<Term>>, term: &mut Term) {
-            match term {
-                Term::Var { name: _ } => {}
-                Term::Abs { var: _, t } => {
-                    stack.push(std::mem::replace(t, get_new_dummy_term()));
-                }
-                Term::App { t1, t2 } => {
-                    stack.push(std::mem::replace(t1, get_new_dummy_term()));
-                    stack.push(std::mem::replace(t2, get_new_dummy_term()));
-                }
-            }
-        }
-
-        // TODO
         drop_term(&mut stack, self);
 
         while let Some(term_rc) = stack.pop() {
-            // TODO doc if unwrap fails
+            // Note that if the try_unwrap fails, there are more references to
+            // this child node in the term tree; i.e. it should not be dropped.
             if let Ok(mut term) = Rc::try_unwrap(term_rc) {
                 drop_term(&mut stack, &mut term);
-                // TODO doc drop
             }
+
+            // Note that up until now the code only works with references to
+            // terms, i.e. the node has not been dropped until now. And now the
+            // terms' memory has been replaced with a dummy variable node
+            // without any recursive children. That is, when the last reference
+            // to the term goes out of scope here in this loop, the variable is
+            // trivially droppable without recursing.
         }
     }
+}
+
+// Helper function used to reduce code duplication that would otherwise
+// be needed due to small difference in provided types.
+fn drop_term(stack: &mut Vec<Rc<Term>>, term: &mut Term) {
+    match term {
+        Term::Var { name: _ } => {}
+        Term::Abs { var: _, t } => {
+            stack.push(std::mem::replace(t, drop_term_new_dummy()));
+        }
+        Term::App { t1, t2 } => {
+            stack.push(std::mem::replace(t1, drop_term_new_dummy()));
+            stack.push(std::mem::replace(t2, drop_term_new_dummy()));
+        }
+    }
+}
+
+// Create a new dummy node (that does not have any children) in the
+// correct expected type expected at the used code positions.
+fn drop_term_new_dummy() -> Rc<Term> {
+    Rc::new(Term::Var {
+        name: Identifier("".to_string()),
+    })
 }
 
 // Use a newtype and not a type alias for proper separation of types / to
