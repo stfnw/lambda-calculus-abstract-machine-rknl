@@ -48,13 +48,13 @@ pub fn encode(term: &Term) -> String {
             Instr::Term(Term::Abs { var, t }) => {
                 result.push(format!("(λ{}. ", var.0));
                 stack.push(Instr::Print(")".to_string()));
-                stack.push(Instr::Term(&*t));
+                stack.push(Instr::Term(t));
             }
             Instr::Term(Term::App { t1, t2 }) => {
                 stack.push(Instr::Print(")".to_string()));
-                stack.push(Instr::Term(&*t2));
+                stack.push(Instr::Term(t2));
                 stack.push(Instr::Print(" ".to_string()));
-                stack.push(Instr::Term(&*t1));
+                stack.push(Instr::Term(t1));
                 stack.push(Instr::Print("(".to_string()));
             }
         }
@@ -118,7 +118,7 @@ impl<'a> Lexer<'a> {
                     // Dumb way (avoids renaming) to prevent collisions with
                     // auto-generated identifiers / variable names later during
                     // term reduction.
-                    if varname.starts_with("v")
+                    if varname.starts_with('v')
                         && varname.chars().skip(1).all(|c| c.is_ascii_digit())
                     {
                         panic!(
