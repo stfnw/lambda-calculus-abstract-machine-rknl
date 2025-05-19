@@ -133,12 +133,14 @@ struct Location(usize);
 #[derive(Debug, Clone)]
 struct LocationRef {
     i: usize,
-    garbage_list: Rc<RefCell<Vec<Location>>>,
+    garbage_locations: Rc<RefCell<Vec<Location>>>,
 }
 
 impl Drop for LocationRef {
     fn drop(&mut self) {
-        (*(self.garbage_list)).borrow_mut().push(Location(self.i));
+        (*(self.garbage_locations))
+            .borrow_mut()
+            .push(Location(self.i));
     }
 }
 
@@ -238,7 +240,7 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
         move || {
             let res = LocationRef {
                 i: *cur_location,
-                garbage_list: Rc::clone(garbage_locations),
+                garbage_locations: Rc::clone(garbage_locations),
             };
             *cur_location += 1;
             Rc::new(res)
