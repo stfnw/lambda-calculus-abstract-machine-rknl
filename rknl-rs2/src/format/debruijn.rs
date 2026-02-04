@@ -15,9 +15,22 @@ pub enum TermDB {
     App { t1: Rc<TermDB>, t2: Rc<TermDB> },
 }
 
+type Result<T> = std::result::Result<T, DebruijnError>;
+
+#[derive(Debug)]
+pub enum DebruijnError {
+    LexCharNot0Or1(#[allow(dead_code)] char),
+    LexUnexpectedEofAbsApp,
+    LexUnexpectedEofVar,
+    UnexpectedEofAbs,
+    UnexpectedEofApp,
+    InputNotFullyConsumed,
+    TermNotClosed,
+}
+
 /// Convert BLC string into lambda term/expression AST.
-pub fn decode_blc(blc: &str) -> TermDB {
-    let tokens = lex(blc);
+pub fn decode_blc(blc: &str) -> Result<TermDB> {
+    let tokens = lex(blc)?;
     parse(&tokens)
 }
 
@@ -100,39 +113,39 @@ enum Token {
 }
 
 /// Tokenize a string in binary lambda calculus encoding.
-fn lex(blc: &str) -> Vec<Token> {
+fn lex(blc: &str) -> Result<Vec<Token>> {
     let mut tokens = Vec::new();
     let mut chars = blc.chars();
 
     while let Some(c) = chars.next() {
         match c {
-            '0' => match chars.next().unwrap() {
+            '0' => match chars.next().ok_or(DebruijnError::LexUnexpectedEofAbsApp)? {
                 '0' => tokens.push(Token::Abs),
                 '1' => tokens.push(Token::App),
-                cc => panic!("Unexpected character {} (expected 0 or 1)", cc),
+                cc => return Err(DebruijnError::LexCharNot0Or1(cc)),
             },
             '1' => {
                 let mut debruijn = 0;
                 loop {
-                    match chars.next().unwrap() {
+                    match chars.next().ok_or(DebruijnError::LexUnexpectedEofVar)? {
                         '0' => break,
                         '1' => debruijn += 1,
-                        cc => panic!("Unexpected character {} (exptected 0 or 1)", cc),
+                        cc => return Err(DebruijnError::LexCharNot0Or1(cc)),
                     }
                 }
                 tokens.push(Token::Var { debruijn });
             }
-            cc => panic!("Unexpected character {} (exptected 0 or 1)", cc),
+            cc => return Err(DebruijnError::LexCharNot0Or1(cc)),
         }
     }
 
-    tokens
+    Ok(tokens)
 }
 
 /// Parse a list of tokens into a lambda expression. This is done iteratively
 /// in order to not run into stack limits for large terms. Also makes sure that
 /// the term is closed / all variables are bound.
-fn parse(tokens: &[Token]) -> TermDB {
+fn parse(tokens: &[Token]) -> Result<TermDB> {
     let mut stack: Vec<TermDB> = Vec::new();
 
     for token in tokens.iter().rev() {
@@ -141,41 +154,35 @@ fn parse(tokens: &[Token]) -> TermDB {
                 debruijn: *debruijn,
             }),
             Token::Abs => {
-                let t = Rc::new(stack.pop().unwrap());
+                let t = Rc::new(stack.pop().ok_or(DebruijnError::UnexpectedEofAbs)?);
                 stack.push(TermDB::Abs { t });
             }
             Token::App => {
-                let t1 = Rc::new(stack.pop().unwrap());
-                let t2 = Rc::new(stack.pop().unwrap());
+                let t1 = Rc::new(stack.pop().ok_or(DebruijnError::UnexpectedEofApp)?);
+                let t2 = Rc::new(stack.pop().ok_or(DebruijnError::UnexpectedEofApp)?);
                 stack.push(TermDB::App { t1, t2 });
             }
         }
     }
 
     if stack.len() != 1 {
-        panic!(
-            "Stack contains not exactly one element after parsing! {:?}",
-            stack
-        );
+        Err(DebruijnError::InputNotFullyConsumed)
+    } else {
+        let term = stack.pop().unwrap();
+        verify_closed(term)
     }
-
-    let term = stack.pop().unwrap();
-
-    verify_closed(&term);
-
-    term
 }
 
 /// Make sure that the provided term is closed.
-fn verify_closed(term: &TermDB) {
+fn verify_closed(term: TermDB) -> Result<TermDB> {
     let mut stack: Vec<(usize, &TermDB)> = Vec::new();
-    stack.push((0, term));
+    stack.push((0, &term));
 
     while let Some((depth, node)) = stack.pop() {
         match node {
             TermDB::Var { debruijn } => {
                 if depth <= *debruijn {
-                    panic!("Provided term {} is not closed", encode_bruijn(term));
+                    return Err(DebruijnError::TermNotClosed);
                 }
             }
             TermDB::Abs { t } => stack.push((depth + 1, t)),
@@ -185,4 +192,6 @@ fn verify_closed(term: &TermDB) {
             }
         }
     }
+
+    Ok(term)
 }
