@@ -453,7 +453,7 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::named;
+    use crate::format::{self, debruijn, named};
 
     struct EvalTestCase<'a> {
         comment: &'a str,
@@ -492,6 +492,134 @@ mod tests {
         assert_eq!(test.reduced, named::encode(&res.reduced_term));
 
         assert_eq!(test_steps, res.steps);
+    }
+
+    // A take on a minimal "human readable" syntax for untyped lambda calculus.
+    // Prefix notation (pre-order traversal of the syntax tree) of lambda calculus terms; therefore no parenthesis are needed.
+    // Like binary lambda calculus, but with the following symbols instead of bit-sequences:
+    // - Variables: De-Bruijn indices as base-10 integers,
+    // - Abstractions/Lambda: `\`
+    // - Applications: `@`
+    fn convert_prefix_notation(s: &str) -> Option<String> {
+        let mut blc = Vec::new();
+        let s: Vec<_> = s.chars().collect();
+        let mut i = 0;
+        while i < s.len() {
+            if s[i].is_ascii_whitespace() {
+                // Ignore whitespace.
+                i += 1;
+                continue;
+            } else if s[i] == '#' {
+                // Ignore comments until ent of line.
+                while i < s.len() && s[i] != '\r' && s[i] != '\n' {
+                    i += 1;
+                }
+            } else if s[i] == '\\' {
+                // Lambda / abstraction.
+                blc.push("00");
+                i += 1;
+            } else if s[i] == '@' {
+                // Aplication.
+                blc.push("01");
+                i += 1;
+            } else if s[i] == '0' {
+                // Variable (De-bruijn index).
+                blc.push("10");
+                i += 1;
+                // Prevent accidental merges of 00 (i.e. two variables 0 0) into
+                // a single variable 0.
+                if i < s.len() && s[i].is_ascii_digit() {
+                    return None;
+                }
+            } else if s[i].is_ascii_digit() && s[i] != '0' {
+                let mut j = 0;
+                while i < s.len() && s[i].is_ascii_digit() {
+                    j *= 10;
+                    j += (s[i] as u8) - ('0' as u8);
+                    i += 1;
+                }
+                for _ in 0..=j {
+                    blc.push("1");
+                }
+                blc.push("0");
+            } else {
+                // Unexpected char.
+                return None;
+            }
+        }
+
+        Some(blc.join(""))
+    }
+
+    // N-th Scott-encoded numeral.
+    fn scott(n: usize) -> String {
+        let mut res = Vec::new();
+        for _ in 0..n {
+            res.push(r#"\\@1 "#);
+        }
+        res.push(r#"\\0"#);
+        res.join("")
+    }
+
+    // Computes the n-th fibonacci number (Scott-encoded numeral).
+    // https://esolangs.org/wiki/Scott_numeral
+    fn fibonacci(n: usize) -> String {
+        let n0 = scott(0);
+        let n1 = scott(1);
+        let n = scott(n);
+
+        let t = r#"\\1 "#.to_string();
+        let f = r#"\\0 "#.to_string();
+        let iszero = format!(r"\@ @0 \ {f} {t}");
+
+        let succ = r#"\\\@1 2 "#;
+        let pred = format!(r#"\@ @0 \0 {n0}"#);
+        #[allow(non_snake_case)]
+        let Y = r#"\@  \@1 @0 0  \@1 @0 0 "#;
+
+        let add = format!(r#"@{Y} \\\ @@ 0 \ @ {succ} @@ 3 2 0 1 "#);
+        let mul = format!(r#"@{Y} \\\ @@ 0 \ @@ {add} 2 @@ 3 2 0 {n0}"#);
+
+        #[allow(non_snake_case)]
+        let F = format!(
+            r#"
+            \\                                      # \f \n
+                @@ @{iszero} 0                      # if n == 0
+                    {n0}                            #       0
+                    @@ @{iszero} @{pred} 0          # elif n == 1
+                        {n1}                        #       1
+                        @@ {add}                    # else (f (n-1)) + (f (n-2))
+                           @ 1 @ {pred} 0
+                           @ 1 @ {pred} @ {pred} 0
+            "#
+        );
+
+        let main = format!(r#"@@{Y}{F}{n}"#);
+
+        convert_prefix_notation(&main).unwrap()
+    }
+
+    #[test]
+    fn test_eval_fibonacci() {
+        let (n, fibn) = (10, 55);
+
+        let blc = fibonacci(n);
+        println!(
+            "Term for computing {n}-th fibonacci number (scott-encoded): {:?}",
+            blc
+        );
+        // 010100010001110011010000111001101000000101010001011000000010000011010000010010101000101100000001000001100100010110001000001010000001110000010010101000100011100110100001110011010000000010110000100000001110111001011111011101011001110010001011000100000101001110010001011000100000100100010110001000001010000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000010
+
+        let ast = debruijn::decode_blc(&blc).unwrap();
+        let res = eval((&ast).into());
+        let blcres = debruijn::encode_blc(&((&res.reduced_term).into()));
+        println!("reduced in {} steps to {}", res.steps, blcres);
+        // 000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000001110000010
+
+        let fibn = convert_prefix_notation(&scott(fibn)).unwrap();
+        assert!(fibn == blcres);
+
+        println!();
     }
 
     /// Test correct beta reduction of various hard-coded lambda terms.

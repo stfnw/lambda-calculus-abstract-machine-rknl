@@ -197,14 +197,16 @@ mod tests {
         ];
 
         for case in cases {
-            let ast = debruijn::decode_blc(case.blc);
-            println!("AST from binary {:?}", ast);
+            let ast = debruijn::decode_blc(case.blc).unwrap();
+            println!("{}", debruijn::encode_bruijn(&ast));
+            println!("{}", debruijn::encode_blc(&ast));
+            // println!("AST from binary {:?}", ast);
             assert_eq!(case.blc, debruijn::encode_blc(&ast));
             assert_eq!(case.bruijn, debruijn::encode_bruijn(&ast));
             assert_eq!(case.named, named::encode(&((&ast).into())));
 
             let ast = named::decode(case.named);
-            println!("AST from text {:?}", ast);
+            // println!("AST from text {:?}", ast);
             assert_eq!(case.blc, debruijn::encode_blc(&(&ast).into()));
             assert_eq!(case.bruijn, debruijn::encode_bruijn(&((&ast).into())));
             assert_eq!(case.named, named::encode(&ast));
