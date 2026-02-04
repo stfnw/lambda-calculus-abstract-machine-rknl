@@ -35,7 +35,7 @@ use std::rc::Rc;
 // Use a newtype and not a type alias for proper separation of types / to
 // prevent confusion.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Identifier(pub String);
+pub struct Identifier(pub usize);
 
 /// Untyped lambda calculus terms.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,7 +108,7 @@ fn drop_term(stack: &mut Vec<Rc<Term>>, term: &mut Term) {
 // correct expected type expected at the used code positions.
 fn drop_term_new_dummy() -> Rc<Term> {
     Rc::new(Term::Var {
-        name: Identifier("".to_string()),
+        name: Identifier(0),
     })
 }
 
@@ -133,14 +133,12 @@ struct Location(usize);
 #[derive(Debug, Clone)]
 struct LocationRef {
     i: usize,
-    garbage_locations: Rc<RefCell<Vec<Location>>>,
+    garbage_list: Rc<RefCell<Vec<Location>>>,
 }
 
 impl Drop for LocationRef {
     fn drop(&mut self) {
-        (*(self.garbage_locations))
-            .borrow_mut()
-            .push(Location(self.i));
+        (*(self.garbage_list)).borrow_mut().push(Location(self.i));
     }
 }
 
@@ -240,7 +238,7 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
         move || {
             let res = LocationRef {
                 i: *cur_location,
-                garbage_locations: Rc::clone(garbage_locations),
+                garbage_list: Rc::clone(garbage_locations),
             };
             *cur_location += 1;
             Rc::new(res)
@@ -252,7 +250,7 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
     // lambda term does not already contain variables of the given form).
     let mut cur_identifier: usize = 0;
     let mut fresh_identifier = move || {
-        let res = Identifier(format!("v{}", cur_identifier));
+        let res = Identifier(cur_identifier);
         cur_identifier += 1;
         res
     };
@@ -714,16 +712,19 @@ mod tests {
         assert_eq!(EvalResult_::StepLimitExceeded, res);
     }
 
+    // Hardcode mapping from variables used in tests to integers.
+    fn var_map(v: char) -> Identifier {
+        Identifier((v as u8) as usize)
+    }
+
     // Short-hand function for constructing Term::Var.
-    fn var(v: &str) -> Term {
-        Term::Var {
-            name: Identifier(v.to_string()),
-        }
+    fn var(v: char) -> Term {
+        Term::Var { name: var_map(v) }
     }
     // Short-hand function for constructing Term::Abs.
-    fn abs(var: &str, t: Term) -> Term {
+    fn abs(var: char, t: Term) -> Term {
         Term::Abs {
-            var: Identifier(var.to_string()),
+            var: var_map(var),
             t: Rc::new(t),
         }
     }
@@ -740,31 +741,31 @@ mod tests {
 
     #[allow(non_snake_case)]
     fn I() -> Term {
-        abs("x", var("x"))
+        abs('x', var('x'))
     }
 
     fn omega() -> Term {
-        abs("x", app(var("x"), var("x")))
+        abs('x', app(var('x'), var('x')))
     }
 
     #[allow(non_snake_case)]
     fn K() -> Term {
-        abs("x", abs("y", var("x")))
+        abs('x', abs('y', var('x')))
     }
 
     #[allow(non_snake_case)]
     fn K_() -> Term {
-        abs("x", abs("y", var("y")))
+        abs('x', abs('y', var('y')))
     }
 
     #[rustfmt::skip]
     fn pair() -> Term {
-        abs("x", abs("y", abs("f",
-                    app(app(var("f"), var("x")), var("y")))))
+        abs('x', abs('y', abs('f',
+                    app(app(var('f'), var('x')), var('y')))))
     }
 
     fn dub() -> Term {
-        abs("x", abs("f", app(app(var("f"), var("x")), var("x"))))
+        abs('x', abs('f', app(app(var('f'), var('x')), var('x'))))
     }
 
     #[rustfmt::skip]
@@ -775,25 +776,25 @@ mod tests {
     // - lines 93/94 definition of yes/no (K/K_)
     // - line 154-158 definition of Church-pred-aux and Church-pred
     fn pred() -> Term {
-        abs("n", abs("f", abs("x",
+        abs('n', abs('f', abs('x',
                     app(
                         app(
                             app(
-                                var("n"),
-                                abs("e", app(
-                                        app(pair(), app(var("e"), K_())),
-                                        app(var("f"), app(var("e"), K_()))))),
-                            app(app(pair(), var("x")), var("x"))),
+                                var('n'),
+                                abs('e', app(
+                                        app(pair(), app(var('e'), K_())),
+                                        app(var('f'), app(var('e'), K_()))))),
+                            app(app(pair(), var('x')), var('x'))),
                         K()))))
     }
 
     /// Build lambda term for n-th Church numeral.
     fn church_encode(n: usize) -> Term {
         if n == 0 {
-            abs("f", abs("x", var("x")))
+            abs('f', abs('x', var('x')))
         } else {
-            let f = var("f");
-            let x = var("x");
+            let f = var('f');
+            let x = var('x');
             let mut body = x;
 
             // Apply f n times
@@ -801,7 +802,7 @@ mod tests {
                 body = app(f.clone(), body);
             }
 
-            abs("f", abs("x", body))
+            abs('f', abs('x', body))
         }
     }
 
@@ -854,19 +855,19 @@ mod tests {
     /// Add two Church numerals.
     #[rustfmt::skip]
     fn church_add() -> Term {
-        abs("m", abs("n", abs("f", abs("x",
+        abs('m', abs('n', abs('f', abs('x',
             app(
-                app(var("m"), var("f")),
-                app(app(var("n"), var("f")), var("x")))))))
+                app(var('m'), var('f')),
+                app(app(var('n'), var('f')), var('x')))))))
     }
 
     /// Multiply two Church numerals.
     #[rustfmt::skip]
     fn church_mul() -> Term {
-        abs("m", abs("n", abs("f", abs("x",
+        abs('m', abs('n', abs('f', abs('x',
             app(
-                app(var("m"), app(var("n"), var("f"))),
-                var("x"))))))
+                app(var('m'), app(var('n'), var('f'))),
+                var('x'))))))
     }
 
     struct EvalTestCaseFamily<'a> {
@@ -895,7 +896,7 @@ mod tests {
             },
             EvalTestCaseFamily {
                 comment: r"\x. c_n ω x",
-                term_f: |n| abs("x", app(app(church_encode(n), omega()), var("x"))),
+                term_f: |n| abs('x', app(app(church_encode(n), omega()), var('x'))),
                 steps_f: |n| 9 * n + 15,
             },
             EvalTestCaseFamily {
@@ -905,7 +906,7 @@ mod tests {
             },
             EvalTestCaseFamily {
                 comment: r"c_n dub (\x. I x)",
-                term_f: |n| app(app(church_encode(n), dub()), abs("x", app(I(), var("x")))),
+                term_f: |n| app(app(church_encode(n), dub()), abs('x', app(I(), var('x')))),
                 steps_f: |n| 18 * n + 20,
             },
         ];

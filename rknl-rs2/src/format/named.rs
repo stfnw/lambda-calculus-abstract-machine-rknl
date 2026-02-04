@@ -43,10 +43,10 @@ pub fn encode(term: &Term) -> String {
         match instr {
             Instr::Print(s) => result.push(s),
             Instr::Term(Term::Var { name }) => {
-                result.push(name.0.clone());
+                result.push(encode_identifier(name));
             }
             Instr::Term(Term::Abs { var, t }) => {
-                result.push(format!("(λ{}. ", var.0));
+                result.push(format!("(λ{}. ", encode_identifier(var)));
                 stack.push(Instr::Print(")".to_string()));
                 stack.push(Instr::Term(t));
             }
@@ -63,9 +63,19 @@ pub fn encode(term: &Term) -> String {
     result.join("")
 }
 
+fn encode_identifier(id: &Identifier) -> String {
+    let v = id.0;
+    if (('a' as usize) <= v && v <= ('z' as usize)) || (('A' as usize) <= v && v <= ('Z' as usize))
+    {
+        format!("{}", (v as u8) as char)
+    } else {
+        format!("v{}", v)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum Token {
-    Var(String),
+    Var(usize),
     Lambda,
     LParen,
     RParen,
@@ -115,18 +125,11 @@ impl<'a> Lexer<'a> {
                     }
 
                     let varname: String = varname.into_iter().collect();
-                    // Dumb way (avoids renaming) to prevent collisions with
-                    // auto-generated identifiers / variable names later during
-                    // term reduction.
-                    if varname.starts_with('v')
-                        && varname.chars().skip(1).all(|c| c.is_ascii_digit())
-                    {
-                        panic!(
-                            "Variable names v[0-9]* are reserved for auto-generated names ({})",
-                            varname
-                        );
+                    // TODO
+                    if varname.len() != 1 {
+                        todo!();
                     }
-
+                    let varname = varname.chars().nth(0).unwrap() as usize;
                     tokens.push(Token::Var(varname));
                     advance = false;
                 }
@@ -182,7 +185,7 @@ impl Parser {
 
     fn parse_term(&mut self) -> Term {
         match self.current_token() {
-            Some(Token::Var(s)) => self.parse_var(s.clone()),
+            Some(Token::Var(s)) => self.parse_var(s),
             Some(Token::LParen) => self.parse_abs_or_app(),
             t => panic!("Unexpected token: {:?} (expected Variable or LParen)", t),
         }
@@ -223,7 +226,7 @@ impl Parser {
         Term::App { t1, t2 }
     }
 
-    fn parse_var(&mut self, name: String) -> Term {
+    fn parse_var(&mut self, name: usize) -> Term {
         self.advance();
         Term::Var {
             name: Identifier(name),
