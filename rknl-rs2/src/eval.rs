@@ -31,7 +31,9 @@ use std::rc::Rc;
 // This version does also automatically garbage collect cached references inside
 // the Store map, so that the Store does not grow unnecessarily.
 
-/// Identifiers: used to represent variable names.
+/// Identifiers: used to represent variable names. Note that these are not
+/// De-Bruijn indices, but simply integer names given to variables (the usual
+/// scoping rules for named variables apply).
 // Use a newtype and not a type alias for proper separation of types / to
 // prevent confusion.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

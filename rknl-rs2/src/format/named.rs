@@ -17,8 +17,8 @@ use std::rc::Rc;
 /// unambiguously specified. The EBNF grammar is roughly (ignoring whitespace):
 ///
 /// <term>   := <var> | <abs> | <app>
-/// <var>    := [a-z][a-zA-Z0-9]*
-/// <abs>    := "(" <lambda> "." <term> ")"
+/// <var>    := [a-zA-Z]
+/// <abs>    := "(" <lambda> <var> "." <term> ")"
 /// <app>    := "(" <term> <term> ")"
 /// <lambda> := "\" | "λ"
 pub fn decode(named: &str) -> Term {
@@ -103,44 +103,22 @@ impl<'a> Lexer<'a> {
     fn lex(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
 
-        let mut advance = true;
-
         loop {
-            match self.current_char() {
+            let c = self.current_char();
+            match c {
                 Some(' ') | Some('\t') | Some('\n') | Some('\r') => (),
                 Some('(') => tokens.push(Token::LParen),
                 Some(')') => tokens.push(Token::RParen),
                 Some('\\') | Some('λ') => tokens.push(Token::Lambda),
                 Some('.') => tokens.push(Token::Dot),
                 Some('a'..='z') => {
-                    let mut varname = vec![self.current_char().unwrap()];
-                    self.advance();
-                    while let Some(c) = self.current_char() {
-                        if c.is_alphanumeric() {
-                            varname.push(c);
-                            self.advance();
-                        } else {
-                            break;
-                        }
-                    }
-
-                    let varname: String = varname.into_iter().collect();
-                    // TODO
-                    if varname.len() != 1 {
-                        todo!();
-                    }
-                    let varname = varname.chars().nth(0).unwrap() as usize;
-                    tokens.push(Token::Var(varname));
-                    advance = false;
+                    tokens.push(Token::Var(c.unwrap() as usize));
                 }
                 None => break,
                 _ => panic!("Unexpected character: {}", self.current_char().unwrap()),
             }
 
-            if advance {
-                self.advance();
-            }
-            advance = true;
+            self.advance();
         }
 
         tokens
@@ -205,7 +183,7 @@ impl Parser {
         self.expect(Some(Token::Lambda));
 
         let var = Identifier(match self.current_token() {
-            Some(Token::Var(ref var)) => var.clone(),
+            Some(Token::Var(var)) => var,
             _ => panic!(
                 "Unexpected token: {:?} (expected Variable)",
                 self.current_token()
