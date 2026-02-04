@@ -1,23 +1,48 @@
-// SPDX-FileCopyrightText: 2022 Paper and original Racket Code: Małgorzata Biernacka, Witold Charatonik, and Tomasz Drab. 2022. A simple and efficient implementation of strong call by need by an abstract machine. Proc. ACM Program. Lang. 6, ICFP, Article 94 (August 2022), 28 pages. https://doi.org/10.1145/3549822
-// SPDX-License-Identifier: CC-BY-4.0
-//
-// SPDX-FileCopyrightText: 2025 This specific implementation: Stefan Walter
+// SPDX-FileCopyrightText: 2025 stfnw
 // SPDX-License-Identifier: MIT
 
 //! This module implements encoding/decoding routines for lambda terms in
 //! typical text notation with named variables.
 
-use crate::eval::Identifier;
-use crate::eval::Term;
-
 use std::rc::Rc;
+
+/// Identifiers: used to represent variable names. Note that these are not
+/// De-Bruijn indices, but simply integer names given to variables (the usual
+/// scoping rules for named variables apply).
+/// I think (but I'm not sure) that because of the way the abstract machine
+/// works (lazily caching of evaluated terms identified by their variable name
+/// in the current scope, support for open terms), De-Bruijn indices (that refer
+/// to different variables depending on the nesting lambda depth) are not a
+/// suitable representation here.
+/// TODO test that out
+/// Use a newtype and not a type alias for proper separation of types / to
+/// prevent confusion.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Identifier(pub usize);
+
+/// Untyped lambda calculus terms.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Term {
+    /// Variable.
+    Var { name: Identifier },
+    /// Abstraction.
+    Abs { var: Identifier, t: Rc<Term> },
+    /// Application
+    App { t1: Rc<Term>, t2: Rc<Term> },
+}
+
+impl std::fmt::Display for Term {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", encode(self))
+    }
+}
 
 /// Parse a lambda expression AST from a string in text notation
 /// This parser only handles lambda terms with all parenthesis explicitly and
 /// unambiguously specified. The EBNF grammar is roughly (ignoring whitespace):
 ///
 /// <term>   := <var> | <abs> | <app>
-/// <var>    := [a-zA-Z]
+/// <var>    := [a-zA-Z] | "_" [0-9]+
 /// <abs>    := "(" <lambda> <var> "." <term> ")"
 /// <app>    := "(" <term> <term> ")"
 /// <lambda> := "\" | "λ"
@@ -31,30 +56,30 @@ pub fn decode(named: &str) -> Term {
 /// for large terms).
 pub fn encode(term: &Term) -> String {
     enum Instr<'a> {
-        Term(&'a Term),
+        T(&'a Term),
         Print(String),
     }
     let mut stack: Vec<Instr> = Vec::new();
     let mut result: Vec<String> = Vec::new();
 
-    stack.push(Instr::Term(term));
+    stack.push(Instr::T(term));
 
     while let Some(instr) = stack.pop() {
         match instr {
             Instr::Print(s) => result.push(s),
-            Instr::Term(Term::Var { name }) => {
+            Instr::T(Term::Var { name }) => {
                 result.push(encode_identifier(name));
             }
-            Instr::Term(Term::Abs { var, t }) => {
+            Instr::T(Term::Abs { var, t }) => {
                 result.push(format!("(λ{}. ", encode_identifier(var)));
                 stack.push(Instr::Print(")".to_string()));
-                stack.push(Instr::Term(t));
+                stack.push(Instr::T(t));
             }
-            Instr::Term(Term::App { t1, t2 }) => {
+            Instr::T(Term::App { t1, t2 }) => {
                 stack.push(Instr::Print(")".to_string()));
-                stack.push(Instr::Term(t2));
+                stack.push(Instr::T(t2));
                 stack.push(Instr::Print(" ".to_string()));
-                stack.push(Instr::Term(t1));
+                stack.push(Instr::T(t1));
                 stack.push(Instr::Print("(".to_string()));
             }
         }
@@ -69,7 +94,7 @@ fn encode_identifier(id: &Identifier) -> String {
     {
         format!("{}", (v as u8) as char)
     } else {
-        format!("v{}", v)
+        format!("_{}", v)
     }
 }
 
@@ -103,6 +128,8 @@ impl<'a> Lexer<'a> {
     fn lex(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
 
+        let mut advance = true;
+
         loop {
             let c = self.current_char();
             match c {
@@ -111,14 +138,30 @@ impl<'a> Lexer<'a> {
                 Some(')') => tokens.push(Token::RParen),
                 Some('\\') | Some('λ') => tokens.push(Token::Lambda),
                 Some('.') => tokens.push(Token::Dot),
-                Some('a'..='z') => {
-                    tokens.push(Token::Var(c.unwrap() as usize));
+                Some('a'..='z') => tokens.push(Token::Var(c.unwrap() as usize)),
+                Some('_') => {
+                    self.advance();
+                    let mut name = 0;
+                    while let Some(c) = self.current_char() {
+                        if c.is_ascii_digit() {
+                            name *= 10;
+                            name += (c as usize) - ('0' as usize);
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                    tokens.push(Token::Var(name));
+                    advance = false;
                 }
                 None => break,
                 _ => panic!("Unexpected character: {}", self.current_char().unwrap()),
             }
 
-            self.advance();
+            if advance {
+                self.advance();
+            }
+            advance = true;
         }
 
         tokens

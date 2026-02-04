@@ -10,11 +10,11 @@
 //! Especially Table 1 "The RKNL abstract machine, a reasonable and lazy variant of KN"
 //! which lists the state transition rules.
 
-use crate::format::named;
-
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use crate::format::named::{Identifier, Term};
 
 // A note regarding garbage collection / reference counting:
 //
@@ -30,31 +30,6 @@ use std::rc::Rc;
 //
 // This version does also automatically garbage collect cached references inside
 // the Store map, so that the Store does not grow unnecessarily.
-
-/// Identifiers: used to represent variable names. Note that these are not
-/// De-Bruijn indices, but simply integer names given to variables (the usual
-/// scoping rules for named variables apply).
-// Use a newtype and not a type alias for proper separation of types / to
-// prevent confusion.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Identifier(pub usize);
-
-/// Untyped lambda calculus terms.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Term {
-    /// Variable.
-    Var { name: Identifier },
-    /// Application
-    App { t1: Rc<Term>, t2: Rc<Term> },
-    /// Abstraction.
-    Abs { var: Identifier, t: Rc<Term> },
-}
-
-impl std::fmt::Display for Term {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", named::encode(self))
-    }
-}
 
 /// Manually implementing Drop for Term is needed because otherwise we run into
 /// a stack overflow when dropping large trees, because the drop propagates
@@ -478,6 +453,7 @@ pub fn eval_(term: Term, max_steps: Option<usize>) -> EvalResult_ {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::format::named;
 
     struct EvalTestCase<'a> {
         comment: &'a str,
@@ -500,7 +476,7 @@ mod tests {
         let test = EvalTestCase {
             comment: "Example term given in the paper in section 4.1",
             term: r"((\x. ((c x) x)) ((\y. (\z. ((\x. x) z))) ((\x. (x x)) (\x. (x x)))))",
-            reduced: "((c (λv0. v0)) (λv0. v0))",
+            reduced: "((c (λ_0. _0)) (λ_0. _0))",
         };
         let test_steps = 27;
 
@@ -525,43 +501,43 @@ mod tests {
             EvalTestCase {
                 comment: "I",
                 term: "(λa. a)",
-                reduced: "(λv0. v0)",
+                reduced: "(λ_0. _0)",
             },
             EvalTestCase {
                 comment: "(ω I)",
                 term: "((λa. (a a)) (λa. a))",
-                reduced: "(λv0. v0)",
+                reduced: "(λ_0. _0)",
             },
             EvalTestCase {
                 comment: "((I I) I)",
                 term: "(((λa. a) (λa. a)) (λa. a))",
-                reduced: "(λv0. v0)",
+                reduced: "(λ_0. _0)",
             },
             EvalTestCase {
                 comment: "(false I)",
                 term: "((λa. (λb. b)) (λa. a))",
-                reduced: "(λv0. v0)",
+                reduced: "(λ_0. _0)",
             },
             EvalTestCase {
                 comment: "(true I)",
                 term: "((λa. (λb. a)) (λa. a))",
-                reduced: "(λv0. (λv1. v1))",
+                reduced: "(λ_0. (λ_1. _1))",
             },
             EvalTestCase {
                 comment: "((true I) I)",
                 term: "(((λa. (λb. a)) (λa. a)) (λa. a))",
-                reduced: "(λv0. v0)",
+                reduced: "(λ_0. _0)",
             },
 
             EvalTestCase {
                 comment: "-",
                 term: "((λa. (λb. (a b))) (λa. a))",
-                reduced: "(λv0. v0)",
+                reduced: "(λ_0. _0)",
             },
             EvalTestCase {
                 comment: "-",
                 term: "((λa. (λb. (b a))) (λa. (λb. (a b))))",
-                reduced: "(λv0. (v0 (λv1. (λv2. (v1 v2)))))",
+                reduced: "(λ_0. (_0 (λ_1. (λ_2. (_1 _2)))))",
             },
 
             /* Some more elaborate tests: generated in bash with the following
@@ -596,94 +572,94 @@ mod tests {
             EvalTestCase {
                 comment: "(($AND $TRUE) $FALSE)",
                 term: "(((λp. (λq. ((p q) p))) (λt. (λf. t))) (λt. (λf. f)))",
-                reduced: "(λv0. (λv1. v1))", // $FALSE
+                reduced: "(λ_0. (λ_1. _1))", // $FALSE
             },
             EvalTestCase {
                 comment: "($NOT (($AND $TRUE) $FALSE))",
                 term: "((λp. (λa. (λb. ((p b) a)))) (((λp. (λq. ((p q) p))) (λt. (λf. t))) (λt. (λf. f))))",
-                reduced: "(λv0. (λv1. v0))", // $TRUE
+                reduced: "(λ_0. (λ_1. _0))", // $TRUE
             },
             EvalTestCase {
                 comment: "($IF (($AND $TRUE) (($OR $TRUE) $FALSE)))",
                 term: "((λp. (λa. (λb. ((p a) b)))) (((λp. (λq. ((p q) p))) (λt. (λf. t))) (((λp. (λq. ((p p) q))) (λt. (λf. t))) (λt. (λf. f)))))",
-                reduced: "(λv0. (λv1. v0))", // $TRUE
+                reduced: "(λ_0. (λ_1. _0))", // $TRUE
             },
             EvalTestCase {
                 comment: "($IF (($AND $TRUE) (($AND $TRUE) $FALSE)))",
                 term: "((λp. (λa. (λb. ((p a) b)))) (((λp. (λq. ((p q) p))) (λt. (λf. t))) (((λp. (λq. ((p q) p))) (λt. (λf. t))) (λt. (λf. f)))))",
-                reduced: "(λv0. (λv1. v1))", // $FALSE
+                reduced: "(λ_0. (λ_1. _1))", // $FALSE
             },
 
             EvalTestCase {
                 comment: "(($CONS $BIT1) (($CONS $BIT1) (($CONS $BIT0) (($CONS $BIT1) $NIL)))) -- binary string: [1101]",
                 term: "(((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. t))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (λt. (λf. f))))))",
-                reduced: "(λv0. ((v0 (λv1. (λv2. v2))) (λv3. ((v3 (λv4. (λv5. v5))) (λv6. ((v6 (λv7. (λv8. v7))) (λv9. ((v9 (λv10. (λv11. v11))) (λv12. (λv13. v13))))))))))",
+                reduced: "(λ_0. ((_0 (λ_1. (λ_2. _2))) (λ_3. ((_3 (λ_4. (λ_5. _5))) (λ_6. ((_6 (λ_7. (λ_8. _7))) (λ_9. ((_9 (λ_10. (λ_11. _11))) (λ_12. (λ_13. _13))))))))))",
             },
             EvalTestCase {
                 comment: "LIST=\"(($CONS $BIT1) (($CONS $BIT1) (($CONS $BIT0) (($CONS $BIT1) $NIL))))\"; echo \"($CAR $LIST)\"",
                 term: "((λp. (p (λx. (λy. x)))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. t))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (λt. (λf. f)))))))",
-                reduced: "(λv0. (λv1. v1))", // 1
+                reduced: "(λ_0. (λ_1. _1))", // 1
             },
             EvalTestCase {
                 comment: "LIST=\"(($CONS $BIT1) (($CONS $BIT1) (($CONS $BIT0) (($CONS $BIT1) $NIL))))\"; echo \"($CDR $LIST)\"",
                 term: "((λp. (p (λx. (λy. y)))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. t))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (λt. (λf. f)))))))",
-                reduced: "(λv0. ((v0 (λv1. (λv2. v2))) (λv3. ((v3 (λv4. (λv5. v4))) (λv6. ((v6 (λv7. (λv8. v8))) (λv9. (λv10. v10))))))))", // [101]
+                reduced: "(λ_0. ((_0 (λ_1. (λ_2. _2))) (λ_3. ((_3 (λ_4. (λ_5. _4))) (λ_6. ((_6 (λ_7. (λ_8. _8))) (λ_9. (λ_10. _10))))))))", // [101]
             },
             EvalTestCase {
                 comment: "LIST=\"(($CONS $BIT1) (($CONS $BIT1) (($CONS $BIT0) (($CONS $BIT1) $NIL))))\"; echo \"($CAR ($CDR $LIST))\"",
                 term: "((λp. (p (λx. (λy. x)))) ((λp. (p (λx. (λy. y)))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. t))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (λt. (λf. f))))))))",
-                reduced: "(λv0. (λv1. v1))", // 1
+                reduced: "(λ_0. (λ_1. _1))", // 1
             },
             EvalTestCase {
                 comment: "LIST=\"(($CONS $BIT1) (($CONS $BIT1) (($CONS $BIT0) (($CONS $BIT1) $NIL))))\"; echo \"($CAR ($CDR ($CDR $LIST)))\"",
                 term: "((λp. (p (λx. (λy. x)))) ((λp. (p (λx. (λy. y)))) ((λp. (p (λx. (λy. y)))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. t))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (λt. (λf. f)))))))))",
-                reduced: "(λv0. (λv1. v0))", // 0
+                reduced: "(λ_0. (λ_1. _0))", // 0
             },
             EvalTestCase {
                 comment: "LIST=\"(($CONS $BIT1) (($CONS $BIT1) (($CONS $BIT0) (($CONS $BIT1) $NIL))))\"; echo \"($CDR ($CDR ($CDR $LIST)))\"",
                 term: "((λp. (p (λx. (λy. y)))) ((λp. (p (λx. (λy. y)))) ((λp. (p (λx. (λy. y)))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. t))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (λt. (λf. f)))))))))",
-                reduced: "(λv0. ((v0 (λv1. (λv2. v2))) (λv3. (λv4. v4))))", // [1]
+                reduced: "(λ_0. ((_0 (λ_1. (λ_2. _2))) (λ_3. (λ_4. _4))))", // [1]
             },
             EvalTestCase {
                 comment: "LIST=\"(($CONS $BIT1) (($CONS $BIT1) (($CONS $BIT0) (($CONS $BIT1) $NIL))))\"; echo \"($CAR ($CDR ($CDR ($CDR $LIST))))\"",
                 term: "((λp. (p (λx. (λy. x)))) ((λp. (p (λx. (λy. y)))) ((λp. (p (λx. (λy. y)))) ((λp. (p (λx. (λy. y)))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. t))) (((λx. (λy. (λz. ((z x) y)))) (λt. (λf. f))) (λt. (λf. f))))))))))",
-                reduced: "(λv0. (λv1. v1))", // 1
+                reduced: "(λ_0. (λ_1. _1))", // 1
             },
 
             EvalTestCase {
                 comment: "(($ADD $TWO) $FOUR)",
                 term: "(((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (λf. (λx. (f (f x))))) (λf. (λx. (f (f (f (f x)))))))",
-                reduced: "(λv0. (λv1. (v0 (v0 (v0 (v0 (v0 (v0 v1))))))))", // 6
+                reduced: "(λ_0. (λ_1. (_0 (_0 (_0 (_0 (_0 (_0 _1))))))))", // 6
             },
             EvalTestCase {
                 comment: "(($ADD (($ADD (($ADD $TWO) $FOUR)) $ONE)) $THREE)",
                 term: "(((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (λf. (λx. (f (f x))))) (λf. (λx. (f (f (f (f x)))))))) (λf. (λx. (f x))))) (λf. (λx. (f (f (f x))))))",
-                reduced: "(λv0. (λv1. (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 v1))))))))))))", // 10
+                reduced: "(λ_0. (λ_1. (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 _1))))))))))))", // 10
             },
             EvalTestCase {
                 comment: "(($ADD (($ADD $TWO) $FOUR)) (($ADD $ONE) $THREE))",
                 term: "(((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (λf. (λx. (f (f x))))) (λf. (λx. (f (f (f (f x)))))))) (((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (λf. (λx. (f x)))) (λf. (λx. (f (f (f x)))))))",
-                reduced: "(λv0. (λv1. (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 v1))))))))))))", // 10
+                reduced: "(λ_0. (λ_1. (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 _1))))))))))))", // 10
             },
             EvalTestCase {
                 comment: "(($MUL $TWO) $THREE)",
                 term: "(((λm. (λn. (λf. (λx. ((m (n f)) x))))) (λf. (λx. (f (f x))))) (λf. (λx. (f (f (f x))))))",
-                reduced: "(λv0. (λv1. (v0 (v0 (v0 (v0 (v0 (v0 v1))))))))", // 6
+                reduced: "(λ_0. (λ_1. (_0 (_0 (_0 (_0 (_0 (_0 _1))))))))", // 6
             },
             EvalTestCase {
                 comment: "(($MUL $FOUR) $THREE)",
                 term: "(((λm. (λn. (λf. (λx. ((m (n f)) x))))) (λf. (λx. (f (f (f (f x))))))) (λf. (λx. (f (f (f x))))))", 
-                reduced: "(λv0. (λv1. (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 v1))))))))))))))", // 12
+                reduced: "(λ_0. (λ_1. (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 _1))))))))))))))", // 12
             },
             EvalTestCase {
                 comment: "(($ADD (($MUL $TWO) $THREE)) $FOUR)",
                 term: "(((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (((λm. (λn. (λf. (λx. ((m (n f)) x))))) (λf. (λx. (f (f x))))) (λf. (λx. (f (f (f x))))))) (λf. (λx. (f (f (f (f x)))))))",
-                reduced: "(λv0. (λv1. (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 v1))))))))))))", // 10
+                reduced: "(λ_0. (λ_1. (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 _1))))))))))))", // 10
             },
             EvalTestCase {
                 comment: "(($ADD $FOUR) (($MUL $THREE) $TWO))",
                 term: "(((λm. (λn. (λf. (λx. ((m f) ((n f) x)))))) (λf. (λx. (f (f (f (f x))))))) (((λm. (λn. (λf. (λx. ((m (n f)) x))))) (λf. (λx. (f (f (f x)))))) (λf. (λx. (f (f x))))))",
-                reduced: "(λv0. (λv1. (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 (v0 v1))))))))))))", // 10
+                reduced: "(λ_0. (λ_1. (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 (_0 _1))))))))))))", // 10
             },
         ];
 
