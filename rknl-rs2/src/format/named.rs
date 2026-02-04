@@ -1,4 +1,7 @@
-// SPDX-FileCopyrightText: 2025 stfnw
+// SPDX-FileCopyrightText: 2022 Paper and original Racket Code: Małgorzata Biernacka, Witold Charatonik, and Tomasz Drab. 2022. A simple and efficient implementation of strong call by need by an abstract machine. Proc. ACM Program. Lang. 6, ICFP, Article 94 (August 2022), 28 pages. https://doi.org/10.1145/3549822
+// SPDX-License-Identifier: CC-BY-4.0
+//
+// SPDX-FileCopyrightText: 2026 This specific implementation: Stefan Walter (stfnw)
 // SPDX-License-Identifier: MIT
 
 //! This module implements encoding/decoding routines for lambda terms in
@@ -14,7 +17,6 @@ use std::rc::Rc;
 /// in the current scope, support for open terms), De-Bruijn indices (that refer
 /// to different variables depending on the nesting lambda depth) are not a
 /// suitable representation here.
-/// TODO test that out
 /// Use a newtype and not a type alias for proper separation of types / to
 /// prevent confusion.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

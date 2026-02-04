@@ -2,7 +2,7 @@
 SPDX-FileCopyrightText: 2022 Paper and original Racket Code: Małgorzata Biernacka, Witold Charatonik, and Tomasz Drab. 2022. A simple and efficient implementation of strong call by need by an abstract machine. Proc. ACM Program. Lang. 6, ICFP, Article 94 (August 2022), 28 pages. https://doi.org/10.1145/3549822
 SPDX-License-Identifier: CC-BY-4.0
 
-SPDX-FileCopyrightText: 2025 This specific implementation: Stefan Walter
+SPDX-FileCopyrightText: 2026 This specific implementation: Stefan Walter (stfnw)
 SPDX-License-Identifier: MIT
 -->
 
@@ -47,7 +47,7 @@ The rest of this sections shows some example output from some implemented tests:
 ## Previously shown term from section 4.1 of the paper
 
 ```
-$ cargo test test_eval_paper_example -- --nocapture                                   
+$ cargo test test_eval_paper_example -- --nocapture
    Compiling lambda-calculus-abstract-machine-rknl v0.1.0 (/data/rknl1)
 ...
 running 1 test
@@ -136,7 +136,7 @@ test eval::tests::test_eval_hardcoded ... ok
 The implementation allows limiting the steps taken during execution in order to attempt reducing non-terminating terms like "ω ω".
 
 ```
-$ cargo test test_step_limit_handling -- --nocapture   
+$ cargo test test_step_limit_handling -- --nocapture
 ...
 running 1 test
 Evaluating term ((λx. (x x)) (λx. (x x))) for 100 steps of the abstract machine

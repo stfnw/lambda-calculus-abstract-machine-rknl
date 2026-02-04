@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 stfnw
+// SPDX-FileCopyrightText: 2026 Stefan Walter (stfnw)
 // SPDX-License-Identifier: MIT
 
 //! This module implements encoding/decoding routines for lambda terms in

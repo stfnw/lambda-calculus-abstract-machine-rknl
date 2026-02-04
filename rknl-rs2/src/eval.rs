@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 Paper and original Racket Code: Małgorzata Biernacka, Witold Charatonik, and Tomasz Drab. 2022. A simple and efficient implementation of strong call by need by an abstract machine. Proc. ACM Program. Lang. 6, ICFP, Article 94 (August 2022), 28 pages. https://doi.org/10.1145/3549822
 // SPDX-License-Identifier: CC-BY-4.0
 //
-// SPDX-FileCopyrightText: 2025 This specific implementation: Stefan Walter
+// SPDX-FileCopyrightText: 2026 This specific implementation: Stefan Walter (stfnw)
 // SPDX-License-Identifier: MIT
 
 //! This module implements the RKNL abstract machine for strong call by need
@@ -495,9 +495,9 @@ mod tests {
     }
 
     // A take on a minimal "human readable" syntax for untyped lambda calculus.
-    // Prefix notation (pre-order traversal of the syntax tree) of lambda calculus terms; therefore no parenthesis are needed.
+    // Prefix notation (pre-order traversal of the syntax tree) of lambda calculus terms; unambiguous; therefore no parenthesis are needed.
     // Like binary lambda calculus, but with the following symbols instead of bit-sequences:
-    // - Variables: De-Bruijn indices as base-10 integers,
+    // - Variables: De-Bruijn indices as 0-based base-10 integers,
     // - Abstractions/Lambda: `\`
     // - Applications: `@`
     fn convert_prefix_notation(s: &str) -> Option<String> {
